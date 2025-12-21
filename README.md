@@ -23,7 +23,7 @@ The security concept behind using air-gapped systems for signing transactions is
 Clone the repo:
 
 ```bash
-$ git clone git@github.com:chahatmandviwala-alt/Metastream.git
+git clone https://github.com/chahatmandviwala-alt/Metastream.git
 ```
 
 
