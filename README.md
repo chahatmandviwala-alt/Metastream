@@ -30,19 +30,19 @@ git clone https://github.com/chahatmandviwala-alt/Metastream.git
 Install the dependencies:
 
 ```bash
-$ npm install
+npm install
 ```
 
 Run locally in any browser:
 
 ```bash
-$ npm run start
+npm run start
 ```
 
 Alternatively run locally in default browser:
 
 ```bash
-$ ./Metastream.bat
+./Metastream.bat
 ```
 
 
