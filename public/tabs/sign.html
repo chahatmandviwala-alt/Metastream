@@ -1,0 +1,1608 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign Transaction</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="./libs/html5-qrcode.min.js"></script>
+    <script src="./libs/qrcode.min.js"></script>
+    <script src="./libs/ethers.umd.min.js"></script>
+
+    <link rel="stylesheet" href="styles.css">
+
+    <style>
+      /* Define a CSS variable for consistency */
+      :root{
+        --max-width: 650px; /* keep yours */
+        --bg: #fafbfc;
+        --text: #0f172a;
+        --muted:#475569;
+        --border:#e2e8f0;
+        --panel:#ffffff;
+        --accent: #357CBA;
+        --danger:#ef4444;
+        --success:#22c55e;
+        --radius: 10px;
+
+        /* Current layout had 2 columns with 12px gap. Approx. single block width was (max-width - gap)/2. */
+        --grid-gap: 12px;
+        --single-block-width: calc((var(--max-width) - var(--grid-gap)) / 2);
+        /* New requirement: single column width = 1.5x current single block width */
+        --single-column-width: calc(var(--single-block-width) * 1.7);
+      }
+
+      #reader {
+        width: 100%;
+        max-width: 220px;   /* for example */
+        height: 220px;      /* match qrbox size */
+        margin: 0 auto;
+        overflow: hidden;
+      }
+
+      #reader video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;  /* no cropping */
+      }
+
+      /* Make QR preview respect its container */
+      #sigQr canvas,
+      #sigQr img {
+        max-width: 100%;
+        max-height: 100%;
+        display: block;
+      }
+
+      /* New container for the sleeker layout */
+      #main-container {
+        max-width: var(--single-column-width);
+        padding: 0 8px; /* Small padding on edges for mobile view */
+        width: 100%;
+      }
+
+      /* Apply max-width to the header for consistency */
+      header {
+        max-width: var(--single-column-width);
+        margin: 8px auto 8px auto !important; /* Center the header */
+      }
+
+      /* --- CENTERING LOGIC ---
+         NOTE: Keeping your general centering approach, but we will stabilize layout by
+         fixing right-panel min-heights in JS (see syncRightPanelHeights()).
+      */
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+
+        display: flex;
+        flex-direction: column;
+
+        align-items: center;
+        justify-content: center;
+
+        flex-wrap: wrap;
+        overflow: auto;
+      }
+
+      /* ===== Wallet banner styles (UPDATED) ===== */
+      .alert{
+        border-left: 4px solid;
+      }
+
+      .alert-red {
+        background-color: #ffdddd;  /* light red */
+        color: #a00000;             /* dark red text */
+        border-color: #d00000;
+      }
+
+      .alert-green{
+        background-color: #ddffea;
+        color: #065f46;
+        border-color: #16a34a;
+      }
+      /* ======================================== */
+
+      /* keystore-tool button styling */
+      .btn{
+        display:inline-block;
+        padding: 7px 6px;
+        border-radius: 8px;
+        border: 1px solid var(--accent);
+        color:#fff;
+        background: var(--accent);
+        font-weight: 600;
+        cursor:pointer;
+        font-size: 0.72rem;
+        box-shadow: none;
+      }
+
+      .btn.secondary{
+        background: transparent;
+        color: var(--accent);
+        border-color: var(--border);
+      }
+
+      .btn:disabled{
+        opacity: 0.65;
+        cursor:not-allowed;
+      }
+      .btn.secondary:hover,
+      .btn.secondary:active,
+      .btn.secondary:focus {
+        background: transparent;
+        color: var(--accent);
+        border-color: var(--border);
+      }
+
+      /* Wallet status pill (NEW) */
+      .status-pill{
+        position:absolute;
+        top:8px;
+        right:8px;
+        display:inline-flex;
+        align-items:center;
+        gap:6px;
+        padding:4px 8px;
+        border-radius:999px;
+        border:1px solid var(--border);
+        background: rgba(255,255,255,0.92);
+        backdrop-filter: blur(6px);
+        font-size: 11px;
+        line-height: 1;
+        color: var(--muted);
+        max-width: calc(100% - 16px);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        pointer-events:none; /* never interfere with camera */
+      }
+      .status-pill::before{
+        content:'';
+        width:8px;
+        height:8px;
+        border-radius:999px;
+        background: var(--danger);
+        flex:0 0 auto;
+      }
+      .status-pill--unlocked{
+        color: #065f46;
+        border-color: rgba(34,197,94,0.35);
+      }
+      .status-pill--unlocked::before{
+        background: var(--success);
+      }
+
+      /* Remove wallet button */
+      .btn.danger{
+        background: transparent;
+        border-color: var(--border);
+        color: var(--accent);
+      }
+      .btn.danger:disabled{
+        opacity: 0.65;
+      }
+
+      .compact-input[type="file"]{
+        padding: 4px 4px;
+      }
+
+      .compact-input[type="password"]{
+        padding: 7px 4px;
+      }
+
+      .compact-input[type="text"]{
+        padding: 7px 3px;
+      }
+
+      /* NEW: Single-column layout wrapper (replacing the 2x2 grid) */
+      .grid-2{
+        display: grid;
+        grid-template-columns: 1fr; /* single column */
+        gap: var(--grid-gap);
+        align-items: stretch;
+      }
+
+      /* In single-column mode, let cards size naturally */
+      .grid-2 > .card{
+        height: auto;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .card{
+        box-sizing: border-box;
+        width: 100%;
+      }
+
+      .card > *{
+        min-width: 0;
+      }
+
+      #walletAlert{
+        min-height: 12px;
+        display: flex;
+        align-items: center;
+      }
+
+      #walletAlert{
+        margin: 0 !important;
+      }
+
+      #walletAlert {
+        margin-bottom: 0px !important;
+      }
+
+      #walletStatusRow{
+        margin-top: -10px !important;
+      }
+
+      #scanCard{
+        overflow: hidden;
+      }
+      #scanCard .actions{
+        overflow: auto;
+        max-height: 70px;
+      }
+
+      .tx-header{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .tx-header > *{
+        white-space: nowrap;
+      }
+
+      /* Optional small-screen behavior: still single column; just ensure inputs wrap */
+      @media (max-width: 760px){
+        #unlock-keystore > div,
+        #unlock-pkFile > div,
+        #unlock-manual > div,
+        #unlock-mnemonic > div,
+        #unlock-mnemonicPass > div{
+          flex-wrap: wrap !important;
+          align-items: stretch;
+        }
+      }
+	  
+      /* Header row */
+      #txCard .tx-header{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+      }
+
+      #txCard .tx-title{
+        font-weight: 700;
+        font-size: 14px;
+        margin: 0;
+        text-align: left;
+        flex: 0 0 auto;
+      }
+
+      /* Buttons group: ONE-ROW behavior by default (wide screens) */
+      #txCard .tx-actions{
+        display:flex;
+         gap: 6px;
+         margin: 0;
+
+          /* Keep the actions on the right when in the same row */
+         margin-left: auto;
+         justify-content: flex-end;
+
+        /* Allow wrapping when needed */
+        flex-wrap: wrap;
+       }
+
+        #txCard .tx-actions .btn{
+        flex: 0 0 auto;        /* narrow buttons on wide screens */
+        white-space: nowrap;
+        margin: 0;
+      }
+
+       /* TWO-ROW behavior (narrow screens): actions take full width and buttons stretch */
+      @media (max-width: 520px){
+        #txCard .tx-actions{
+          flex: 1 1 100%;
+          width: 100%;
+          margin-left: 0;              /* no longer “push right” */
+          justify-content: space-between; /* spread across the row */
+        }
+
+        #txCard .tx-actions .btn{
+          flex: 1 1 0;                 /* each button expands */
+          min-width: 0;                /* prevents overflow in tight spaces */
+        }
+      }
+	  
+	  #walletAlert,
+      #walletUnlockedNote{
+        display: block !important;
+        width: 100%;
+        white-space: normal;
+        box-sizing: border-box;
+      }
+
+
+    </style>
+  </head>
+
+  <body>
+    <header style="margin-bottom: 8px; text-align:center;">
+      <h1 style="margin-bottom: 8px; font-size: 18px;">Sign Transaction</h1>
+      <p class="muted small" style="max-width: 800px; margin: 0 auto; font-size: 14px; margin-bottom: 10px;">
+        Scan signature request &gt; Verify transaction &gt; Unlock wallet &gt; Sign transaction
+      </p>
+    </header>
+
+    <div id="main-container">
+      <!-- Single column: Camera -> Unlock Wallet -> Transaction details -> Signature -->
+      <div class="grid-2">
+
+        <!-- Camera -->
+        <div id="cameraCard" class="card"
+             style="display:flex; flex-direction:column; overflow:hidden; position:relative;">
+          <div id="reader"
+               style="
+                 flex:0 0 auto;
+                 height:160px;
+                 max-height:160px;
+                 margin: 0 auto;
+                 overflow:hidden;
+               ">
+          </div>
+
+          <div id="walletStatusPill" class="status-pill status-pill--locked" aria-live="polite">No wallet unlocked</div>
+
+          <div class="actions"
+               style="
+                 margin-top: 8px;
+                 flex-wrap: wrap;
+                 gap: 4px;
+                 justify-content: center;
+                 text-align: center;
+               ">
+            <button id="cameraToggleBtn" class="btn" type="button" style="margin-top: 0px;">Start camera</button>
+            <button id="unlockWalletBtn" class="btn secondary" type="button" style="margin-top: 0px;">Unlock wallet</button>
+            <button id="removeWalletBtn" class="btn danger" type="button" style="margin-top: 0px; display:none;">Remove wallet</button>
+          </div>
+
+          <!-- (1) Camera status removed from UI per request -->
+        </div>
+
+		<!-- Unlock Wallet -->
+		<div id="unlockCard"
+			class="card"
+			style="display:none; flex-direction:column;">
+
+		<!-- Title -->
+		<div class="small"
+			style="font-weight:bold; margin-bottom:4px; font-size:14px;">
+			Unlock Wallet
+		</div>
+
+		<!-- Status row -->
+		<div id="walletStatusRow" style="display:none;"></div>
+
+		<!-- Main content (grows) -->
+		<div class="wallet-panel"
+			style="border:1px solid var(--border);
+					border-radius:8px;
+					padding:6px;
+					margin-bottom:4px;
+					flex:1 1 auto;
+					overflow:auto;">
+
+			<select id="unlockMode"
+					class="compact-input"
+					style="width:100%; margin:6px 0;">
+			<option value="keystore">Import Keystore</option>
+			<option value="pkFile">Import Private key</option>
+			<option value="manual">Enter Private key</option>
+			<option value="mnemonic">Enter Seed phrase</option>
+			<option value="mnemonicPass">Enter Seed phrase + Passphrase</option>
+			</select>
+
+			<!-- Keystore -->
+			<div id="unlock-keystore" class="compact-text">
+			<div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
+				<div style="flex:1 1 65%; min-width:80px;">
+				<label for="keystoreFile"><strong>Keystore (.json)</strong></label>
+				<input id="keystoreFile"
+						type="file"
+						accept=".json"
+						class="compact-input"
+						style="margin-top:4px; width:100%;">
+				</div>
+
+				<div style="flex:1 1 35%; min-width:70px;">
+				<label for="keystorePassword"><strong>Password</strong></label>
+				<input id="keystorePassword"
+						type="password"
+						autocomplete="off"
+						class="compact-input"
+						placeholder="Password"
+						style="margin-top:4px; width:100%;">
+				</div>
+
+				<div style="flex:0 0 auto;">
+				<button id="keystoreUnlockBtn"
+						class="btn"
+						type="button"
+						style="white-space:nowrap;">
+					&thinsp;&thinsp; Unlock &thinsp;&thinsp;
+				</button>
+				</div>
+			</div>
+			</div>
+
+			<!-- Private key file -->
+			<div id="unlock-pkFile" class="compact-text" style="display:none;">
+			<div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
+				<div style="flex:1 1 auto; min-width:75px;">
+				<label for="pkFile"><strong>Private key file (.txt)</strong></label>
+				<input id="pkFile"
+						type="file"
+						accept=".txt"
+						class="compact-input"
+						style="margin-top:4px; width:100%;">
+				</div>
+
+				<div style="flex:0 0 auto;">
+				<button id="pkFileUnlockBtn"
+						class="btn"
+						type="button"
+						style="white-space:nowrap;">
+					&thinsp;&thinsp; Unlock &thinsp;&thinsp;
+				</button>
+				</div>
+			</div>
+			</div>
+
+    <!-- Manual private key -->
+    <div id="unlock-manual" class="compact-text" style="display:none;">
+      <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
+        <div style="flex:1 1 auto; min-width:275px;">
+          <label for="pkManual"><strong>Private key</strong></label>
+          <input id="pkManual"
+                 type="password"
+                 autocomplete="off"
+                 class="compact-input"
+                 placeholder="Enter private key"
+                 style="margin-top:4px; width:100%;">
+        </div>
+
+        <div style="flex:0 0 auto;">
+          <button id="manualUnlockBtn"
+                  class="btn"
+                  type="button"
+                  style="white-space:nowrap;">
+            &thinsp;&thinsp; Unlock &thinsp;&thinsp;
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mnemonic -->
+    <div id="unlock-mnemonic" class="compact-text" style="display:none;">
+      <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
+        <div style="flex:2 1 auto; min-width:100px;">
+          <label for="mnemonicInput"><strong>Mnemonic phrase</strong></label>
+          <input id="mnemonicInput"
+                 type="password"
+                 autocomplete="off"
+                 class="compact-input"
+                 placeholder="Enter seed phrase"
+                 style="margin-top:4px; width:100%;">
+        </div>
+
+        <div style="flex:1 1 auto; min-width:100px;">
+          <label for="derivationPathInput"><strong>Path</strong></label>
+          <input id="derivationPathInput"
+                 type="text"
+                 autocomplete="off"
+                 class="compact-input"
+                 value="m/44'/60'/0'/0/0"
+                 style="margin-top:4px; width:100%;">
+        </div>
+
+        <div style="flex:0 0 auto;">
+          <button id="mnemonicUnlockBtn"
+                  class="btn"
+                  type="button"
+                  style="white-space:nowrap;">
+            &thinsp;&thinsp; Unlock &thinsp;&thinsp;
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mnemonic + passphrase -->
+    <div id="unlock-mnemonicPass" class="compact-text" style="display:none;">
+      <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
+        <div style="flex:2 1 auto; min-width:100px;">
+          <label for="mnemonicInput2"><strong>Mnemonic</strong></label>
+          <input id="mnemonicInput2"
+                 type="password"
+                 autocomplete="off"
+                 class="compact-input"
+                 placeholder="Seed phrase"
+                 style="margin-top:4px; width:100%;">
+        </div>
+
+        <div style="flex:1 1 auto; min-width:25px;">
+          <label for="mnemonicPassphraseInput"><strong>Passphrase</strong></label>
+          <input id="mnemonicPassphraseInput"
+                 type="password"
+                 autocomplete="off"
+                 class="compact-input"
+                 placeholder="Optional"
+                 style="margin-top:4px; width:100%;">
+        </div>
+
+        <div style="flex:1 1 auto; min-width:25px;">
+          <label for="derivationPathInput2"><strong>Path</strong></label>
+          <input id="derivationPathInput2"
+                 type="text"
+                 autocomplete="off"
+                 class="compact-input"
+                 value="m/44'/60'/0'/0/0"
+                 style="margin-top:4px; width:100%;">
+        </div>
+
+        <div style="flex:0 0 auto;">
+          <button id="mnemonicPassUnlockBtn"
+                  class="btn"
+                  type="button"
+                  style="white-space:nowrap;">
+            Unlock
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Security note (pinned to bottom) -->
+  <div id="walletAlert"
+       class="alert alert-red compact-text"
+       style="margin-top:auto; padding:4px 8px;">
+    <strong>Security Note:</strong>
+    &thinsp; Use this tool on an air-gapped machine for maximum security.
+  </div>
+
+  <!-- Unlocked note -->
+  <div id="walletUnlockedNote"
+       class="muted compact-text"
+       style="margin-top:2px; display:none;">
+  </div>
+
+</div>
+
+        <!-- Transaction details -->
+        <div id="txCard" class="card" aria-label="Decoded request panel"
+             style="display:flex; flex-direction:column; min-height:180px;">
+
+        <div class="tx-header">
+          <div class="tx-title small">Transaction details</div>
+
+          <!-- Buttons hidden by default; only shown when transaction details are successfully rendered -->
+          <div id="txActions" class="tx-actions" style="display:none;">
+            <button id="signBtn" class="btn" type="button">Sign transaction</button>
+            <button id="refreshPreviewBtn" class="btn secondary" type="button">Refresh</button>
+            <button id="resetBtn" class="btn secondary" type="button">Reset</button>
+          </div>
+        </div>
+
+          <div id="decodedSummary" class="compact-text"
+               style="flex:1 1 auto; max-height:100%; border:1px solid var(--border); border-radius:10px; padding:6px; background:#fff; overflow:auto; margin-top:-10px;">
+            <div class="muted">Scan a transaction request QR code</div>
+          </div>
+        </div>
+
+        <!-- Signature -->
+        <div id="sigCard" class="card"
+             style="display:none; flex-direction:column; min-height:180px;">
+
+          <div style="
+                display:flex;
+                gap:8px;
+                flex:1 1 auto;
+                overflow:hidden;
+                align-items:flex-start;
+              ">
+
+            <div style="flex:0 0 160px;">
+              <div class="compact-text" style="margin-top: 6px;"><strong>SIGNATURE QR</strong></div>
+              <div id="sigQr" style="width:153px; height:153px; margin-top: 8px;"></div>
+            </div>
+
+            <div style="flex:1 1 auto;">
+              <div class="tx-header" style="margin-top:0;">
+                <div class="compact-text"><strong>UR:ETH-SIGNATURE</strong></div>
+                <!-- (4) Now acts as a reset button too (implemented in JS), label unchanged -->
+                <button id="clearSigBtn" class="btn secondary" disabled type="button" style="padding:6px 8px;">Clear</button>
+              </div>
+              <textarea id="sigText"
+                        rows="9"
+                        class="mono compact-text"
+                        readonly
+                        style="width:100%; height:100%; margin-top:4px; resize:none; overflow:auto; font-size:0.86rem;"></textarea>
+            </div>
+          </div>
+
+          <div style="display:none;">
+            <span id="rHex"></span>
+            <span id="sHex"></span>
+            <span id="vParity"></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="display:none;">
+      <textarea id="log" rows="8" class="mono" readonly></textarea>
+      <div id="result" class="muted small">Waiting for frames…</div>
+    </div>
+
+    <script>
+      // ---- DOM elements ----
+      const readerEl = document.getElementById('reader');
+      const cameraToggleBtn = document.getElementById('cameraToggleBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const refreshPreviewBtn = document.getElementById('refreshPreviewBtn');
+
+      // (1) Camera status removed from DOM; do not reference it.
+      // const statusEl = document.getElementById('status');
+
+      const logEl    = document.getElementById('log');
+      const resultEl = document.getElementById('result');
+
+      const signBtn = document.getElementById('signBtn');
+      const sigText = document.getElementById('sigText');
+      const rHexEl = document.getElementById('rHex');
+      const sHexEl = document.getElementById('sHex');
+      const vParityEl = document.getElementById('vParity');
+      const sigQrEl = document.getElementById('sigQr');
+
+      // NEW: Transaction actions container (buttons are shown only after successful details render)
+      const txActionsEl = document.getElementById('txActions');
+
+      // ---- Panel visibility (keep UI compact: only 2 blocks visible) ----
+      const cameraCardEl = document.getElementById('cameraCard');
+      const unlockCardEl = document.getElementById('unlockCard');
+      const txCardEl     = document.getElementById('txCard');
+      const sigCardEl    = document.getElementById('sigCard');
+      const unlockWalletBtn = document.getElementById('unlockWalletBtn');
+      const removeWalletBtn = document.getElementById('removeWalletBtn');
+      const walletStatusPillEl = document.getElementById('walletStatusPill');
+      const clearSigBtn = document.getElementById('clearSigBtn');
+
+      function showRightPanel(which) {
+        // camera stays visible; we swap the "right" block only
+        if (unlockCardEl) unlockCardEl.style.display = (which === 'unlock') ? 'flex' : 'none';
+        if (txCardEl)     txCardEl.style.display     = (which === 'tx')     ? 'flex' : 'none';
+        if (sigCardEl)    sigCardEl.style.display    = (which === 'sig')    ? 'flex' : 'none';
+      }
+
+      // Default: Camera + Transaction details
+      showRightPanel('tx');
+
+      if (unlockWalletBtn) {
+        unlockWalletBtn.addEventListener('click', () => {
+          showRightPanel('unlock');
+        });
+      }
+
+      if (removeWalletBtn) {
+        removeWalletBtn.addEventListener('click', async () => {
+          // ---- Clear wallet material from memory ----
+          currentPrivateKeyHex = null;
+          currentAddress = null;
+          pendingPkFromFile = null;
+          keystoreJsonString = null;
+
+          // ---- Clear ALL unlock inputs (DOM) ----
+          try {
+            // Keystore mode inputs
+            if (keystoreFileInput) keystoreFileInput.value = '';
+            if (keystorePasswordInput) keystorePasswordInput.value = '';
+
+            // Private key file mode input
+            if (pkFileInput) pkFileInput.value = '';
+
+            // Manual PK mode input
+            if (pkManualInput) pkManualInput.value = '';
+
+            // Mnemonic mode inputs
+            if (mnemonicInput) mnemonicInput.value = '';
+            if (derivationPathInput) derivationPathInput.value = DEFAULT_DERIVATION_PATH;
+
+            // Mnemonic+passphrase mode inputs
+            if (mnemonicInput2) mnemonicInput2.value = '';
+            if (mnemonicPassphraseInput) mnemonicPassphraseInput.value = '';
+            if (derivationPathInput2) derivationPathInput2.value = DEFAULT_DERIVATION_PATH;
+
+            // Optional: clear any legacy wallet display elements (if present)
+            if (walletUnlockedNoteEl) {
+              walletUnlockedNoteEl.textContent = '';
+              walletUnlockedNoteEl.style.display = 'none';
+            }
+          } catch (_) {
+            // no-op
+          }
+
+    // ---- Reset UI hints ----
+    try { resetWalletAlertToSecurityNote(); } catch (_) {}
+
+    // If you have any wallet-address UI, reset it too
+    try { updateWalletUI(); } catch (_) {}
+
+    // Update the camera-card button label, pill, remove button visibility
+    setUnlockWalletButtonLabel();
+
+    // Reset unlock button labels (UX)
+    try {
+      keystoreUnlockBtn.textContent = 'Unlock';
+      pkFileUnlockBtn.textContent = 'Unlock';
+      manualUnlockBtn.textContent = 'Unlock';
+      mnemonicUnlockBtn.textContent = 'Unlock';
+      mnemonicPassUnlockBtn.textContent = 'Unlock';
+    } catch (_) {}
+
+    // Keep heights aligned
+    syncRightPanelHeights();
+  });
+}
+
+      // Unlock UI
+      const unlockModeSelect = document.getElementById('unlockMode');
+      const keystoreSection = document.getElementById('unlock-keystore');
+      const pkFileSection = document.getElementById('unlock-pkFile');
+      const manualSection = document.getElementById('unlock-manual');
+      const mnemonicSection = document.getElementById('unlock-mnemonic');
+      const mnemonicPassSection = document.getElementById('unlock-mnemonicPass');
+
+      const keystoreFileInput = document.getElementById('keystoreFile');
+      const keystorePasswordInput = document.getElementById('keystorePassword');
+      const keystoreUnlockBtn = document.getElementById('keystoreUnlockBtn');
+
+      const pkFileInput = document.getElementById('pkFile');
+      const pkFileUnlockBtn = document.getElementById('pkFileUnlockBtn');
+
+      const pkManualInput = document.getElementById('pkManual');
+      const manualUnlockBtn = document.getElementById('manualUnlockBtn');
+
+      const mnemonicInput = document.getElementById('mnemonicInput');
+      const derivationPathInput = document.getElementById('derivationPathInput');
+      const mnemonicUnlockBtn = document.getElementById('mnemonicUnlockBtn');
+
+      const mnemonicInput2 = document.getElementById('mnemonicInput2');
+      const mnemonicPassphraseInput = document.getElementById('mnemonicPassphraseInput');
+      const derivationPathInput2 = document.getElementById('derivationPathInput2');
+      const mnemonicPassUnlockBtn = document.getElementById('mnemonicPassUnlockBtn');
+
+      const walletAddressEl = document.getElementById('walletAddress');
+      const walletUnlockedNoteEl = document.getElementById('walletUnlockedNote');
+
+      let html5QrCode = null;
+      let isRunning = false;
+      let seen = new Set();
+      let sigQr = null;
+
+      // Wallet state
+      let currentPrivateKeyHex = null; // 64-hex, no 0x
+      let currentAddress = null;       // 0x-address
+      let pendingPkFromFile = null;    // 64-hex from file
+      let keystoreJsonString = null;   // raw JSON text
+
+      const DEFAULT_DERIVATION_PATH = "m/44'/60'/0'/0/0";
+
+      function setTxActionsVisible(isVisible) {
+        if (!txActionsEl) return;
+        txActionsEl.style.display = isVisible ? 'flex' : 'none';
+      }
+
+      function shortAddressTail(addr, n=6) {
+        if (!addr || typeof addr !== 'string') return '';
+        const m = addr.match(/^0x[0-9a-fA-F]{40}$/);
+        if (!m) return addr.slice(-n);
+        return addr.slice(-n);
+      }
+
+      function setRemoveWalletButtonVisible() {
+        if (!removeWalletBtn) return;
+        const hasWallet = !!(currentPrivateKeyHex && /^[0-9a-fA-F]{64}$/.test(currentPrivateKeyHex));
+        removeWalletBtn.style.display = hasWallet ? 'inline-block' : 'none';
+      }
+
+      function updateWalletStatusPill() {
+        if (!walletStatusPillEl) return;
+
+        const hasWallet = !!(currentPrivateKeyHex && /^[0-9a-fA-F]{64}$/.test(currentPrivateKeyHex));
+        const addrTail = currentAddress ? shortAddressTail(currentAddress, 6) : '';
+        if (hasWallet) {
+          walletStatusPillEl.textContent = `Wallet: •\u200A•\u200A•\u200A${addrTail || '??????'}`;
+          walletStatusPillEl.classList.add('status-pill--unlocked');
+        } else {
+          walletStatusPillEl.textContent = 'No wallet unlocked';
+          walletStatusPillEl.classList.remove('status-pill--unlocked');
+        }
+      }
+
+      function setUnlockWalletButtonLabel() {
+        // Update the Camera-card "Unlock wallet" button label based on wallet state
+        if (!unlockWalletBtn) return;
+        if (currentPrivateKeyHex && /^[0-9a-fA-F]{64}$/.test(currentPrivateKeyHex)) {
+          unlockWalletBtn.textContent = 'Wallet unlocked';
+        } else {
+          unlockWalletBtn.textContent = 'Unlock wallet';
+        }
+        setRemoveWalletButtonVisible();
+        updateWalletStatusPill();
+      }
+
+      // (3) Stabilize layout: ensure Unlock / Tx / Sig panels share the same height
+      //     so the camera/top block does not move when swapping panels.
+  function getNaturalHeightEvenIfHidden(el) {
+    if (!el) return 0;
+
+    // Save current inline styles we touch
+    const prev = {
+      display: el.style.display,
+      visibility: el.style.visibility,
+      position: el.style.position,
+      left: el.style.left,
+      top: el.style.top,
+      minHeight: el.style.minHeight,
+      height: el.style.height,
+      width: el.style.width,
+    };
+
+    // IMPORTANT: remove min-height constraints so measurement can shrink again
+    el.style.minHeight = '0px';
+    el.style.height = 'auto';
+
+    // Render off-screen but at the CURRENT container width so wrapping matches the real layout
+    const container = document.getElementById('main-container');
+    const targetWidth = container ? container.getBoundingClientRect().width : null;
+
+    el.style.visibility = 'hidden';
+    el.style.position = 'absolute';
+    el.style.left = '-9999px';
+    el.style.top = '0px';
+    el.style.display = 'flex';
+
+    if (targetWidth) el.style.width = targetWidth + 'px';
+
+    // Measure natural height
+    const h = el.getBoundingClientRect().height;
+
+    // Restore
+    el.style.display = prev.display;
+    el.style.visibility = prev.visibility;
+    el.style.position = prev.position;
+    el.style.left = prev.left;
+    el.style.top = prev.top;
+    el.style.minHeight = prev.minHeight;
+    el.style.height = prev.height;
+    el.style.width = prev.width;
+
+    return h;
+  }
+
+  function syncRightPanelHeights() {
+    if (!unlockCardEl || !txCardEl || !sigCardEl) return;
+
+    // 1) Clear minHeight first (prevents “ratcheting”)
+    unlockCardEl.style.minHeight = '0px';
+    txCardEl.style.minHeight = '0px';
+    sigCardEl.style.minHeight = '0px';
+
+    // 2) Measure natural height for the canonical panel (Unlock)
+    const unlockH = getNaturalHeightEvenIfHidden(unlockCardEl);
+
+    if (unlockH && unlockH > 0) {
+      // 3) Apply the synchronized minHeight
+      unlockCardEl.style.minHeight = unlockH + 'px';
+      txCardEl.style.minHeight = unlockH + 'px';
+      sigCardEl.style.minHeight = unlockH + 'px';
+    }
+  }
+
+      function deriveWalletFromMnemonic(phrase, pathOverride, bip39Passphrase) {
+        const ethersLib = window.ethers;
+        if (!ethersLib) {
+          throw new Error('Ethers library not loaded');
+        }
+
+        // BIP39 passphrase (a.k.a. "mnemonic password") is optional
+        const passphrase = (bip39Passphrase || '').toString();
+
+        // Use override if provided, otherwise default
+        let path = (pathOverride && pathOverride.trim()) || DEFAULT_DERIVATION_PATH;
+
+        // Normalize path: allow "44'/60'/..." and prepend "m/"
+        if (!/^m\//i.test(path)) {
+          path = 'm/' + path.replace(/^\/+/, '');
+        }
+
+        // Ethers v6: HDNodeWallet.fromPhrase(mnemonic, password?, path?)
+        if (ethersLib.HDNodeWallet && typeof ethersLib.HDNodeWallet.fromPhrase === 'function') {
+          return ethersLib.HDNodeWallet.fromPhrase(phrase, passphrase || undefined, path);
+        }
+
+        // Ethers v5: utils.HDNode.fromMnemonic(mnemonic, password?) + derivePath
+        if (ethersLib.utils && ethersLib.utils.HDNode && typeof ethersLib.utils.HDNode.fromMnemonic === 'function') {
+          const root = ethersLib.utils.HDNode.fromMnemonic(phrase, passphrase || undefined);
+          const child = root.derivePath(path);
+          return new ethersLib.Wallet(child.privateKey);
+        }
+
+        // Ethers v5: Wallet.fromMnemonic(mnemonic, path?)
+        // NOTE: Ethers v5 Wallet.fromMnemonic does not support BIP39 passphrase.
+        if (ethersLib.Wallet && typeof ethersLib.Wallet.fromMnemonic === 'function') {
+          if (passphrase) {
+            throw new Error('This ethers build does not support BIP39 passphrase for mnemonic derivation (Wallet.fromMnemonic).');
+          }
+          return ethersLib.Wallet.fromMnemonic(phrase, path);
+        }
+
+        // Ethers v6 compat: Wallet.fromPhrase(mnemonic, password?, path?)
+        if (ethersLib.Wallet && typeof ethersLib.Wallet.fromPhrase === 'function') {
+          return ethersLib.Wallet.fromPhrase(phrase, passphrase || undefined, path);
+        }
+
+        throw new Error('This ethers build does not support mnemonic/HD wallets.');
+      }
+
+      // ---- Helpers ----
+      function log(line) {
+        if (!logEl) return;
+        logEl.value += (logEl.value ? "\n" : "") + line;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function updateWalletUI() {
+        if (!walletAddressEl) return;
+        if (currentAddress) {
+          walletAddressEl.textContent = currentAddress;
+          walletAddressEl.classList.remove('muted');
+        } else {
+          walletAddressEl.textContent = '(locked)';
+          walletAddressEl.classList.add('muted');
+        }
+      }
+
+      function resetWalletAlertToSecurityNote() {
+        const walletAlertEl = document.getElementById('walletAlert');
+        if (!walletAlertEl) return;
+        walletAlertEl.classList.remove('alert-green');
+        walletAlertEl.classList.add('alert-red');
+        walletAlertEl.innerHTML = `<strong>Security Note:</strong> &thinsp; Use this tool on an air-gapped machine for maximum security.`;
+      }
+
+      function logWalletUnlocked() {
+        // Log to hidden log textarea
+        if (currentAddress) {
+          log(`Wallet unlocked (${currentAddress}).`);
+        } else {
+          log('Wallet unlocked.');
+        }
+
+        const walletAlertEl = document.getElementById('walletAlert');
+        if (walletAlertEl) {
+          walletAlertEl.classList.remove('alert-red');
+          walletAlertEl.classList.add('alert-green');
+
+          const addr = currentAddress || '(address unavailable)';
+          walletAlertEl.innerHTML =
+            `<strong>Wallet Unlocked:</strong> &thinsp; ${addr}`;
+        }
+
+        // Ensure old footnote stays hidden (legacy)
+        if (walletUnlockedNoteEl) {
+          walletUnlockedNoteEl.style.display = 'none';
+        }
+
+        // Status row (legacy) is no longer needed, but if present keep it hidden to save space
+        const walletStatusRow = document.getElementById('walletStatusRow');
+        if (walletStatusRow) {
+          walletStatusRow.style.display = 'none';
+        }
+
+        // Update camera-card affordances + pill
+        setUnlockWalletButtonLabel();
+
+        // Keep heights aligned
+        syncRightPanelHeights();
+
+        // After a successful unlock, return to Transaction details panel
+        try { showRightPanel('tx'); } catch (_) {}
+      }
+
+      function normalizePkHex(raw) {
+        return (raw || '').trim().replace(/^0x/i, '');
+      }
+
+      async function postJSON(url, body) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      }
+
+      async function getJSON(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      }
+
+      // ---- Unlock mode UI ----
+      function updateUnlockModeUI() {
+        const mode = unlockModeSelect.value;
+        keystoreSection.style.display = (mode === 'keystore') ? 'block' : 'none';
+        pkFileSection.style.display   = (mode === 'pkFile')   ? 'block' : 'none';
+        manualSection.style.display   = (mode === 'manual')   ? 'block' : 'none';
+        mnemonicSection.style.display = (mode === 'mnemonic') ? 'block' : 'none';
+        mnemonicPassSection.style.display = (mode === 'mnemonicPass') ? 'block' : 'none';
+      }
+      unlockModeSelect.addEventListener('change', updateUnlockModeUI);
+      updateUnlockModeUI();
+
+      // ---- Keystore handling ----
+      keystoreFileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        keystoreJsonString = null;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target.result;
+            JSON.parse(text); // sanity check
+            keystoreJsonString = text;
+            log(`Loaded keystore file: ${file.name}`);
+          } catch (err) {
+            alert('File is not valid JSON keystore.');
+            log('ERROR: Invalid keystore JSON: ' + (err.message || err));
+            keystoreJsonString = null;
+          }
+        };
+        if (file) reader.readAsText(file);
+      });
+
+      keystoreUnlockBtn.addEventListener('click', async () => {
+        if (!window.ethers || !window.ethers.Wallet) {
+          alert('Ethers library not available; cannot decrypt keystore in browser.');
+          return;
+        }
+        if (!keystoreJsonString) {
+          alert('Please select a keystore.json file first.');
+          return;
+        }
+        const password = keystorePasswordInput.value || '';
+        if (!password) {
+          alert('Please enter the keystore password.');
+          return;
+        }
+
+        try {
+          log('Attempting to unlock wallet from keystore…');
+          const wallet = await window.ethers.Wallet.fromEncryptedJson(keystoreJsonString, password);
+          currentPrivateKeyHex = normalizePkHex(wallet.privateKey);
+          currentAddress = wallet.address;
+          updateWalletUI();
+          logWalletUnlocked();
+          keystoreUnlockBtn.textContent = 'Unlocked';
+        } catch (e) {
+          alert('Failed to decrypt keystore: ' + (e.message || e));
+          log('ERROR unlocking keystore: ' + (e.message || e));
+        }
+      });
+
+      // ---- Private key file handling ----
+      pkFileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        pendingPkFromFile = null;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            let keyContent = normalizePkHex(e.target.result);
+            if (!/^[0-9a-fA-F]{64}$/.test(keyContent)) {
+              alert('File content is not a valid 64-hex private key (after removing 0x).');
+              log('ERROR: Invalid private key format in file.');
+              pendingPkFromFile = null;
+            } else {
+              pendingPkFromFile = keyContent;
+              log(`Loaded private key from file: ${file.name}. Click "Unlock wallet" to use it.`);
+            }
+          } catch (err) {
+            alert('Error reading file: ' + (err.message || err));
+            log('File read ERROR: ' + (err.message || err));
+            pendingPkFromFile = null;
+          }
+        };
+        if (file) reader.readAsText(file);
+      });
+
+      pkFileUnlockBtn.addEventListener('click', () => {
+        if (!pendingPkFromFile) {
+          alert('Please select a valid private key file first.');
+          return;
+        }
+        if (!window.ethers || !window.ethers.Wallet) {
+          currentPrivateKeyHex = pendingPkFromFile;
+          currentAddress = null;
+          updateWalletUI();
+          logWalletUnlocked();
+          pkFileUnlockBtn.textContent = 'Unlocked';
+          return;
+        }
+        try {
+          const wallet = new window.ethers.Wallet('0x' + pendingPkFromFile);
+          currentPrivateKeyHex = normalizePkHex(wallet.privateKey);
+          currentAddress = wallet.address;
+          updateWalletUI();
+          logWalletUnlocked();
+          pkFileUnlockBtn.textContent = 'Unlocked';
+        } catch (e) {
+          alert('Invalid private key: ' + (e.message || e));
+          log('ERROR unlocking from private key file: ' + (e.message || e));
+        }
+      });
+
+      // ---- Manual private key handling ----
+      manualUnlockBtn.addEventListener('click', () => {
+        const pkHex = normalizePkHex(pkManualInput.value);
+        if (!/^[0-9a-fA-F]{64}$/.test(pkHex)) {
+          alert('Please enter a 64-hex private key (no 0x).');
+          return;
+        }
+        if (!window.ethers || !window.ethers.Wallet) {
+          currentPrivateKeyHex = pkHex;
+          currentAddress = null;
+          updateWalletUI();
+          logWalletUnlocked();
+          manualUnlockBtn.textContent = 'Unlocked';
+          return;
+        }
+        try {
+          const wallet = new window.ethers.Wallet('0x' + pkHex);
+          currentPrivateKeyHex = normalizePkHex(wallet.privateKey);
+          currentAddress = wallet.address;
+          updateWalletUI();
+          logWalletUnlocked();
+          manualUnlockBtn.textContent = 'Unlocked';
+        } catch (e) {
+          alert('Invalid private key: ' + (e.message || e));
+          log('ERROR unlocking from manual PK: ' + (e.message || e));
+        }
+      });
+
+      // ---- Mnemonic + derivation path handling ----
+      mnemonicUnlockBtn.addEventListener('click', () => {
+        const phrase = (mnemonicInput.value || '').trim();
+        let path = (derivationPathInput.value || '').trim();
+
+        if (!phrase) {
+          alert('Please enter a mnemonic phrase.');
+          return;
+        }
+
+        // If user leaves it empty, enforce the default and write it back to the input
+        if (!path) {
+          path = DEFAULT_DERIVATION_PATH;
+          derivationPathInput.value = DEFAULT_DERIVATION_PATH;
+        }
+
+        try {
+          log(`Deriving key from mnemonic with path: ${path}`);
+          const wallet = deriveWalletFromMnemonic(phrase, path);
+
+          currentPrivateKeyHex = normalizePkHex(wallet.privateKey);
+          currentAddress = wallet.address;
+
+          updateWalletUI();
+          logWalletUnlocked();
+          mnemonicUnlockBtn.textContent = 'Unlocked';
+        } catch (e) {
+          const msg = e && e.message ? e.message : String(e);
+          alert('Failed to derive key from mnemonic: ' + msg);
+          log('ERROR deriving from mnemonic: ' + msg);
+        }
+      });
+
+      // ---- Mnemonic + BIP39 passphrase + derivation path handling ----
+      mnemonicPassUnlockBtn.addEventListener('click', () => {
+        const phrase = (mnemonicInput2.value || '').trim();
+        const bip39Passphrase = (mnemonicPassphraseInput.value || '').toString();
+        let path = (derivationPathInput2.value || '').trim();
+
+        if (!phrase) {
+          alert('Please enter a mnemonic phrase.');
+          return;
+        }
+
+        // If user leaves it empty, enforce the default and write it back to the input
+        if (!path) {
+          path = DEFAULT_DERIVATION_PATH;
+          derivationPathInput2.value = DEFAULT_DERIVATION_PATH;
+        }
+
+        try {
+          log(`Deriving key from mnemonic with passphrase and path: ${path}`);
+          const wallet = deriveWalletFromMnemonic(phrase, path, bip39Passphrase);
+
+          currentPrivateKeyHex = normalizePkHex(wallet.privateKey);
+          currentAddress = wallet.address;
+
+          updateWalletUI();
+          logWalletUnlocked();
+          mnemonicPassUnlockBtn.textContent = 'Unlocked';
+        } catch (e) {
+          const msg = e && e.message ? e.message : String(e);
+          alert('Failed to derive key from mnemonic + passphrase: ' + msg);
+          log('ERROR deriving from mnemonic + passphrase: ' + msg);
+        }
+      });
+
+      // ---- Scan to server (animated UR assembly) ----
+      async function resetServerDecoder() {
+        // Keep UI focused on Transaction details when resetting
+        try { showRightPanel('tx'); } catch (_) {}
+
+        // Hide tx action buttons until details are successfully re-rendered
+        setTxActionsVisible(false);
+
+        seen.clear();
+        try {
+          await postJSON('/api/ur/reset', {});
+          if (resultEl) {
+            resultEl.textContent = 'Decoder reset. Ready to collect frames.';
+          }
+          const box = document.getElementById('decodedSummary');
+          box.innerHTML = '<div class="muted">Scan a transaction request QR code</div>';
+        } catch (e) {
+          if (resultEl) {
+            resultEl.textContent = 'Failed to reset decoder: ' + (e.message || e);
+          }
+        }
+      }
+
+      async function onScanSuccess(decodedText) {
+        const part = decodedText.trim();
+        if (!/^ur:eth-sign-request\//i.test(part)) return;
+        if (seen.has(part)) return;
+        seen.add(part);
+
+        log('Frame → ' + part.slice(0, 60) + (part.length > 60 ? '…' : ''));
+
+        try {
+          const reply = await postJSON('/api/ur/part', { part });
+          if (reply.status === 'collecting') {
+            // (1) No camera status UI; keep info in hidden result/log only
+            if (resultEl) resultEl.textContent = 'Collecting parts… keep scanning.';
+          } else if (reply.status === 'error') {
+            if (resultEl) resultEl.textContent = 'Decode error on server: ' + reply.error;
+            log('ERROR: ' + reply.error);
+          } else if (reply.status === 'complete') {
+            if (resultEl) {
+              resultEl.innerHTML = `
+                <div class="ok">✅ Completed on server.</div>
+                <div>Type: <code>${reply.type}</code></div>
+                <div>CBOR (hex): <code class="mono">${reply.cborHex.slice(0, 80)}${reply.cborHex.length>80?'…':''}</code></div>
+              `;
+            }
+            await stopCamera();
+            await refreshDecoded();
+          }
+        } catch (e) {
+          if (resultEl) resultEl.textContent = 'Network error posting frame: ' + (e.message || e);
+          log('Network error: ' + (e.message || e));
+        }
+      }
+      function onScanFailure(_error) {}
+
+      async function startCamera() {
+        try {
+          await resetServerDecoder();
+          if (!html5QrCode) html5QrCode = new Html5Qrcode('reader');
+          const configs = { fps: 12, qrbox: { width: 220, height: 220 } };
+          await html5QrCode.start({ facingMode: 'environment' }, configs, onScanSuccess, onScanFailure);
+          isRunning = true;
+          cameraToggleBtn.textContent = 'Stop camera';
+          log('Camera started.');
+        } catch (e) {
+          if (resultEl) resultEl.textContent = 'Failed to start camera: ' + (e.message || e);
+          log('Start error: ' + (e.message || e));
+        }
+      }
+
+      async function stopCamera() {
+        try {
+          if (html5QrCode && isRunning) {
+            await html5QrCode.stop();
+            await html5QrCode.clear();
+          }
+        } catch (e) {
+          console.warn('Stop error:', e);
+        } finally {
+          isRunning = false;
+          cameraToggleBtn.textContent = 'Start camera';
+          log('Camera stopped.');
+        }
+      }
+
+      let cameraBusy = false;
+
+      async function toggleCamera() {
+        if (cameraBusy) return;
+        cameraBusy = true;
+        try {
+          if (!isRunning) {
+            await startCamera();
+          } else {
+            await stopCamera();
+          }
+        } finally {
+          cameraBusy = false;
+        }
+      }
+
+      cameraToggleBtn.addEventListener('click', toggleCamera);
+      resetBtn.addEventListener('click', resetServerDecoder);
+
+      // ---- Decoded preview ----
+      function renderHumanSummary(data) {
+        const box = document.getElementById('decodedSummary');
+
+        if (!data || data.error) {
+          // Keep tx action buttons hidden on failure/empty
+          setTxActionsVisible(false);
+
+          box.innerHTML = `<div class="err">${data?.error || 'No data'}</div>`;
+          return;
+        }
+
+        // Success: show tx action buttons
+        setTxActionsVisible(true);
+
+        const h = data.human || {};
+        const tx = data.tx || {};
+
+        // --- Network / chainId to human label ---
+        let chainIdRaw = data.chainId ?? tx.chainId ?? null;
+        let chainIdNum = null;
+
+        if (chainIdRaw != null) {
+          if (typeof chainIdRaw === 'number') {
+            chainIdNum = chainIdRaw;
+          } else if (typeof chainIdRaw === 'bigint') {
+            chainIdNum = Number(chainIdRaw);
+          } else if (typeof chainIdRaw === 'string') {
+            if (chainIdRaw.startsWith('0x') || chainIdRaw.startsWith('0X')) {
+              const parsed = parseInt(chainIdRaw, 16);
+              if (!Number.isNaN(parsed)) chainIdNum = parsed;
+            } else {
+              const parsed = Number(chainIdRaw);
+              if (!Number.isNaN(parsed)) chainIdNum = parsed;
+            }
+          }
+        }
+
+        function networkLabelFromChainId(idNum, fallbackRaw) {
+          switch (idNum) {
+            case 1:
+              return 'Ethereum Mainnet';
+            case 10:
+              return 'OP Mainnet';
+            case 42161:
+              return 'Arbitrum';
+            case 8453:
+              return 'Base';
+            default:
+              if (idNum != null) return String(idNum);
+              if (fallbackRaw != null) return String(fallbackRaw);
+              return '(unknown)';
+          }
+        }
+
+        const networkLabel = networkLabelFromChainId(chainIdNum, chainIdRaw);
+
+        // --- Core fields you want to see ---
+        const type =
+          tx.type
+            ? tx.type.toUpperCase()
+            : (data.dataType === 4
+                ? 'EIP-1559'
+                : data.dataType === 1
+                  ? 'LEGACY'
+                  : 'OTHER');
+
+        const toAddr = h.toAddress || tx.to || '(unknown)';
+        const token  = h.token || (tx.valueEth && tx.valueEth !== '0' ? 'ETH' : 'ERC20');
+        const amount = h.amount || (tx.valueEth ?? '0');
+
+        // --- Human-readable action line ---
+        let actionLine = h.summary || 'Review carefully on your device.';
+        if (h.details?.kind === 'erc20.transfer') {
+          actionLine =
+            `Send <b>${amount} ${token}</b> to ` +
+            `<code style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">${h.details.recipient}</code>`;
+        } else if (h.details?.kind === 'eth.transfer') {
+          actionLine =
+            `Send <b>${amount} ETH</b> to ` +
+            `<code style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">${h.details.recipient}</code>`;
+        } else if (h.details?.kind === 'contract.call') {
+          actionLine =
+            `Contract call to <code style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">${h.details.to}</code>` +
+            ` (selector <code>${h.details.selector}</code>)`;
+        }
+
+        // --- Render: compact 2-column layout ---
+        box.innerHTML = `
+          <div style="
+            display:grid;
+            grid-template-columns: minmax(80px, 90px) minmax(0, 1fr);
+            column-gap: 2px;
+            row-gap: 3px;
+            align-items:start;
+          ">
+            <div class="muted">Network:</div>
+            <div><b>${networkLabel}</b></div>
+
+            <div class="muted">Tx type:</div>
+            <div><b>${type}</b></div>
+
+            <div class="muted">To:</div>
+            <div>
+              <code style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block; max-width:100%;">${toAddr}</code>
+            </div>
+
+            <div class="muted">Token:</div>
+            <div><b>${token}</b></div>
+
+            <div class="muted">Amount:</div>
+            <div><b>${amount}</b></div>
+
+            <div class="muted">Summary:</div>
+            <div>${actionLine}</div>
+          </div>
+        `;
+
+        // Panel content changed; keep heights aligned
+        syncRightPanelHeights();
+      }
+
+      async function refreshDecoded() {
+        const box = document.getElementById('decodedSummary');
+
+        // Hide buttons until we confirm details successfully render
+        setTxActionsVisible(false);
+
+        box.innerHTML = '<div class="muted">(loading…)</div>';
+        try {
+          const data = await getJSON('/api/ur/decoded');
+          renderHumanSummary(data);
+        } catch (e) {
+          const err = 'Error: ' + (e.message || e);
+          setTxActionsVisible(false);
+          box.innerHTML = `<div class="err">${err}</div>`;
+          syncRightPanelHeights();
+        }
+      }
+
+      refreshPreviewBtn.addEventListener('click', refreshDecoded);
+
+      // ---- Signing ----
+      function renderSigQr(text) {
+        if (typeof QRCode === 'undefined') {
+          alert('QR library did not load. Try a hard refresh (Ctrl+F5).');
+          return;
+        }
+        const opts = { text, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.L };
+        if (!sigQr) {
+          sigQr = new QRCode(sigQrEl, opts);
+        } else {
+          sigQr.clear();
+          sigQr.makeCode(text);
+        }
+      }
+
+      function clearSigUI() {
+        sigText.value = '';
+        if (rHexEl) rHexEl.textContent = '';
+        if (sHexEl) sHexEl.textContent = '';
+        if (vParityEl) vParityEl.textContent = '';
+        if (sigQr) sigQr.clear();
+        sigQrEl.innerHTML = '';
+        sigQr = null;
+      }
+
+      async function clearSigAndResetTx() {
+        // (4) Clear signature + clear scanned transaction details as a true reset
+        clearSigUI();
+        if (clearSigBtn) clearSigBtn.disabled = true;
+
+        // Clear scanned tx details + reset decoder state
+        await resetServerDecoder();
+
+        // Bring user back to Transaction details panel
+        showRightPanel('tx');
+
+        // Re-sync heights since panel content changed
+        syncRightPanelHeights();
+      }
+
+      if (clearSigBtn) {
+        clearSigBtn.addEventListener('click', clearSigAndResetTx);
+      }
+
+      signBtn.addEventListener('click', async () => {
+        // Only available after transaction details successfully render
+        if (!currentPrivateKeyHex || !/^[0-9a-fA-F]{64}$/.test(currentPrivateKeyHex)) {
+          alert('No wallet unlocked. Please unlock a wallet with a keystore, private key or a seed phrase.');
+          // Guide user to the unlock panel
+          showRightPanel('unlock');
+          return;
+        }
+
+        clearSigUI();
+        if (clearSigBtn) clearSigBtn.disabled = true;
+
+        try {
+          const reply = await postJSON('/api/sign', { privateKeyHex: currentPrivateKeyHex });
+          if (!reply.ok) throw new Error(reply.error || 'Unknown signing error');
+
+          if (reply.address && /^0x[0-9a-fA-F]{40}$/.test(reply.address)) {
+            currentAddress = reply.address;
+            updateWalletUI();
+            logWalletUnlocked();
+          }
+
+          sigText.value = reply.urSignatureUpper;
+          if (rHexEl) rHexEl.textContent = reply.r;
+          if (sHexEl) sHexEl.textContent = reply.s;
+          if (vParityEl) vParityEl.textContent = String(reply.vParity);
+          renderSigQr(reply.urSignatureUpper);
+
+          if (clearSigBtn) clearSigBtn.disabled = false;
+
+          // Replace Transaction details with Signature
+          showRightPanel('sig');
+
+          // Height sync after panel swap
+          syncRightPanelHeights();
+        } catch (e) {
+          alert('Sign error: ' + (e.message || e));
+        }
+      });
+
+      // Initial setup: reflect wallet button state + sync heights when DOM is ready
+      document.addEventListener('DOMContentLoaded', () => {
+        try { resetWalletAlertToSecurityNote(); } catch (_) {}
+        setUnlockWalletButtonLabel();
+        // After initial paint, measure and align heights
+        setTimeout(syncRightPanelHeights, 0);
+      });
+
+      window.addEventListener('resize', () => {
+        // Keep layout stable across viewport changes
+        syncRightPanelHeights();
+      });
+
+      // Also do a one-time sync shortly after load (fonts/layout settling)
+      setTimeout(syncRightPanelHeights, 250);
+    </script>
+  </body>
+</html>
