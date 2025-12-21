@@ -1,0 +1,27 @@
+{
+  "name": "ethsignrequest",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js & sleep 1 && xdg-open http://localhost:3000",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@keystonehq/bc-ur-registry-eth": "^0.22.1",
+    "@keystonehq/ur-decoder": "^0.12.2",
+    "@onekeyfe/hd-air-gap-sdk": "^1.0.0-alpha.9",
+    "ethers": "^6.15.0",
+    "express": "^5.1.0",
+    "rlp": "^3.0.0",
+	"qrcode": "^1.5.4",
+	"tiny-secp256k1": "^2.2.4",
+	"@ngraveio/bc-ur": "^1.1.13",
+    "bip32": "^5.0.0",
+    "bip39": "^3.1.0",
+    "cbor": "^10.0.11"
+  }
+}
