@@ -319,8 +319,18 @@ input[type=text]:focus, input[type=password]:focus, textarea:focus{
     <div class="grid-container">
       <!-- TOP: full-width input block -->
       <section class="section" id="input-block">
-        <label>Seed phrase</label>
-        <textarea id="mnemonic" placeholder="Enter your 12/15/18/21/24 word mnemonic seed phrase "></textarea>
+        <div class="field">
+          <div class="label-row">
+            <label for="mnemonic" class="field-label">Seed phrase</label>
+            <button type="button" id="toggleMnemonic" class="text-toggle">Show</button>
+          </div>
+
+          <textarea
+            id="mnemonic"
+            placeholder="Enter your 12/15/18/21/24 word mnemonic seed phrase"
+            data-hidden="true"
+          ></textarea>
+        </div>
 		
 <div class="row-controls">
 <div class="field">
@@ -460,7 +470,24 @@ input[type=text]:focus, input[type=password]:focus, textarea:focus{
   });
 }
 
+  function attachTextareaToggle(textareaId, buttonId) {
+    const ta = document.getElementById(textareaId);
+    const btn = document.getElementById(buttonId);
+    if (!ta || !btn) return;
+
+    // start hidden
+    ta.style.webkitTextSecurity = "disc";
+
+    btn.addEventListener("click", () => {
+      const hidden = ta.style.webkitTextSecurity === "disc";
+      ta.style.webkitTextSecurity = hidden ? "none" : "disc";
+      btn.textContent = hidden ? "Hide" : "Show";
+    });
+  }
+
   attachButtonToggle("passphrase", "togglePassphrase");
+  attachTextareaToggle("mnemonic", "toggleMnemonic");
+
 
   document.getElementById('go').addEventListener('click', gen);
   document.getElementById('copy').addEventListener('click', async () => {

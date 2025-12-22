@@ -531,7 +531,7 @@
       <span class="info-icon" tabindex="0" aria-label="Keystore password information">
         ⓘ
         <span class="tooltip">
-          This password will be used to encrypt the generated wallet as a keystore (.json) file.
+          This password will be used to encrypt the generated wallet as a keystore (.json) file. The encryption process will take approximately 5 seconds.
           The wallet can never be recovered if the password is lost.
         </span>
       </span>
@@ -881,7 +881,39 @@
 
         const passphrase = $("passphrase").value || "";
         const wallet = walletFromMnemonic(state.mnemonic, passphrase, state.path);
-        const json = await wallet.encrypt(pw);
+        let json;
+
+		// Increase scrypt N here (must be power of two)
+		const SCRYPT = { N: 262144, r: 8, p: 1 };
+
+		if (isEthersV6()) {
+		// ethers v6: use encryptKeystoreJson (supports scrypt params)
+		const account = {
+			address: wallet.address,
+			privateKey: wallet.privateKey,
+			// Optional metadata (safe to omit, but useful if you want mnemonic info embedded)
+			mnemonic: {
+			entropy: ethers.Mnemonic.fromPhrase(state.mnemonic).entropy,
+			path: state.path
+			}
+		};
+
+		json = await ethers.encryptKeystoreJson(
+			account,
+			pw,
+			{
+			scrypt: SCRYPT,
+			progressCallback: (_p) => { /* optional: update UI */ }
+			}
+		);
+		} else {
+		// ethers v5: wallet.encrypt supports options + progress callback
+		json = await wallet.encrypt(
+			pw,
+			{ scrypt: SCRYPT },
+			(_p) => { /* optional: update UI */ }
+		);
+	    }
 
         const blob = new Blob([json], { type: "application/json" });
         const url = URL.createObjectURL(blob);
