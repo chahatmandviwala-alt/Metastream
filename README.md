@@ -4,7 +4,7 @@ A solution to creating new ethereum wallets and securely signing transactions co
 
 ![Alt text](docs/IMG_01.png)
 
-Warning: Use this tool only on a permanently air-gapped machine for maximum security. Never enter your paper wallet seedphrase on a device that connects to internet.
+### Warning: Use this tool only on a permanently air-gapped machine for maximum security. Never enter your cold wallet or hardware wallet seedphrase on a device that connects to internet.
 
 ## Description
 
