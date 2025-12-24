@@ -328,7 +328,119 @@
         white-space: normal;
         box-sizing: border-box;
       }
+	  
+	  /* =========================
+      Sleeker "Unlock Wallet" UI
+      (layout-only; keeps logic)
+      ========================= */
 
+      #unlockCard {
+        gap: 10px;
+      }
+
+      #unlockCard .unlock-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      #unlockCard .wallet-panel {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px;
+        background: linear-gradient(180deg, rgba(250,251,252,0.9), rgba(255,255,255,0.95));
+        box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+        overflow: hidden; /* keeps things tight */
+      }
+
+      #unlockCard .unlock-mode {
+        margin: 0 0 10px 0;
+        width: 100%;
+        border-radius: 10px;
+      }
+
+      /* Each mode section as a compact "form row" */
+      #unlockCard .unlock-section {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: end;
+      }
+
+      /* Two-field rows (keystore, mnemonic, mnemonicPass) */
+      #unlockCard .unlock-fields-2 {
+        display: grid;
+        grid-template-columns: 1fr 0.7fr;
+        gap: 10px;
+      }
+
+      /* Three-field rows (mnemonic+pass) */
+      #unlockCard .unlock-fields-3 {
+        display: grid;
+        grid-template-columns: 1.3fr 0.8fr 0.8fr;
+        gap: 10px;
+      }
+
+      #unlockCard label {
+        display: block;
+        font-weight: 700;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+
+      #unlockCard input.compact-input,
+      #unlockCard select.compact-input {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,0.95);
+      }
+
+      #unlockCard .unlock-action {
+        display: flex;
+        align-items: end;
+        justify-content: end;
+      }
+
+      #unlockCard .unlock-action .btn {
+        padding: 6px 10px;          /* slightly more premium */
+        border-radius: 10px;
+        font-size: 0.78rem;
+      }
+
+      /* Footer note stays pinned and cleaner */
+      #unlockCard .unlock-footer {
+        margin-top: auto;
+        border-radius: 10px;
+        padding: 8px 10px;
+      }
+
+      /* Responsive: collapse multi-field rows on narrow screens */
+      @media (max-width: 560px) {
+        #unlockCard .unlock-section {
+          grid-template-columns: 1fr;
+        }
+        #unlockCard .unlock-fields-2,
+        #unlockCard .unlock-fields-3 {
+          grid-template-columns: 1fr;
+        }
+        #unlockCard .unlock-action {
+          justify-content: stretch;
+        }
+        #unlockCard .unlock-action .btn {
+          width: 100%;
+        }
+      }
+	  
+	  /* Unified card titles */
+      .card-title {
+        font-weight: 700;
+        font-size: 14px;
+        margin: 0;
+        letter-spacing: 0.01em;
+      }
 
     </style>
   </head>
@@ -376,32 +488,21 @@
           <!-- (1) Camera status removed from UI per request -->
         </div>
 
-		<!-- Unlock Wallet -->
-		<div id="unlockCard"
-			class="card"
-			style="display:none; flex-direction:column;">
+        <!-- Unlock Wallet -->
+        <div id="unlockCard" class="card" style="display:none; flex-direction:column;">
 
-		<!-- Title -->
-		<div class="small"
-			style="font-weight:bold; margin-bottom:4px; font-size:14px;">
-			Unlock Wallet
-		</div>
+          <!-- Header -->
+          <div class="unlock-header">
+            <div class="card-title">Unlock Wallet</div>
+          </div>
 
-		<!-- Status row -->
-		<div id="walletStatusRow" style="display:none;"></div>
+          <!-- Status row (kept for compatibility, still hidden by your JS) -->
+          <div id="walletStatusRow" style="display:none;"></div>
 
-		<!-- Main content (grows) -->
-		<div class="wallet-panel"
-			style="border:1px solid var(--border);
-					border-radius:8px;
-					padding:6px;
-					margin-bottom:4px;
-					flex:1 1 auto;
-					overflow:auto;">
+          <!-- Main content -->
+          <div class="wallet-panel" style="flex:1 1 auto;">
 
-			<select id="unlockMode"
-					class="compact-input"
-					style="width:100%; margin:6px 0;">
+			<select id="unlockMode" class="compact-input unlock-mode">
 			<option value="keystore">Import Keystore</option>
 			<option value="pkFile">Import Private key</option>
 			<option value="manual">Enter Private key</option>
@@ -411,185 +512,127 @@
 
 			<!-- Keystore -->
 			<div id="unlock-keystore" class="compact-text">
-			<div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
-				<div style="flex:1 1 65%; min-width:80px;">
-				<label for="keystoreFile"><strong>Keystore (.json)</strong></label>
-				<input id="keystoreFile"
-						type="file"
-						accept=".json"
-						class="compact-input"
-						style="margin-top:4px; width:100%;">
+			<div class="unlock-section">
+				<div class="unlock-fields-2">
+				<div>
+					<label for="keystoreFile">Keystore (.json)</label>
+					<input id="keystoreFile" type="file" accept=".json" class="compact-input">
 				</div>
 
-				<div style="flex:1 1 35%; min-width:70px;">
-				<label for="keystorePassword"><strong>Password</strong></label>
-				<input id="keystorePassword"
-						type="password"
-						autocomplete="off"
-						class="compact-input"
-						placeholder="Password"
-						style="margin-top:4px; width:100%;">
+				<div>
+					<label for="keystorePassword">Password</label>
+					<input id="keystorePassword" type="password" autocomplete="off"
+						class="compact-input" placeholder="Password">
+				</div>
 				</div>
 
-				<div style="flex:0 0 auto;">
-				<button id="keystoreUnlockBtn"
-						class="btn"
-						type="button"
-						style="white-space:nowrap;">
-					&thinsp;&thinsp; Unlock &thinsp;&thinsp;
-				</button>
+				<div class="unlock-action">
+				<button id="keystoreUnlockBtn" class="btn" type="button">Unlock</button>
 				</div>
 			</div>
 			</div>
 
 			<!-- Private key file -->
 			<div id="unlock-pkFile" class="compact-text" style="display:none;">
-			<div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
-				<div style="flex:1 1 auto; min-width:75px;">
-				<label for="pkFile"><strong>Private key file (.txt)</strong></label>
-				<input id="pkFile"
-						type="file"
-						accept=".txt"
-						class="compact-input"
-						style="margin-top:4px; width:100%;">
+			<div class="unlock-section">
+				<div>
+				<label for="pkFile">Private key file (.txt)</label>
+				<input id="pkFile" type="file" accept=".txt" class="compact-input">
 				</div>
 
-				<div style="flex:0 0 auto;">
-				<button id="pkFileUnlockBtn"
-						class="btn"
-						type="button"
-						style="white-space:nowrap;">
-					&thinsp;&thinsp; Unlock &thinsp;&thinsp;
-				</button>
+				<div class="unlock-action">
+				<button id="pkFileUnlockBtn" class="btn" type="button">Unlock</button>
 				</div>
 			</div>
 			</div>
 
-    <!-- Manual private key -->
-    <div id="unlock-manual" class="compact-text" style="display:none;">
-      <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
-        <div style="flex:1 1 auto; min-width:275px;">
-          <label for="pkManual"><strong>Private key</strong></label>
-          <input id="pkManual"
-                 type="password"
-                 autocomplete="off"
-                 class="compact-input"
-                 placeholder="Enter private key"
-                 style="margin-top:4px; width:100%;">
-        </div>
+			<!-- Manual private key -->
+			<div id="unlock-manual" class="compact-text" style="display:none;">
+			<div class="unlock-section">
+				<div>
+				<label for="pkManual">Private key</label>
+				<input id="pkManual" type="password" autocomplete="off"
+						class="compact-input" placeholder="Enter private key">
+				</div>
 
-        <div style="flex:0 0 auto;">
-          <button id="manualUnlockBtn"
-                  class="btn"
-                  type="button"
-                  style="white-space:nowrap;">
-            &thinsp;&thinsp; Unlock &thinsp;&thinsp;
-          </button>
-        </div>
-      </div>
-    </div>
+				<div class="unlock-action">
+				<button id="manualUnlockBtn" class="btn" type="button">Unlock</button>
+				</div>
+			</div>
+			</div>
 
-    <!-- Mnemonic -->
-    <div id="unlock-mnemonic" class="compact-text" style="display:none;">
-      <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
-        <div style="flex:2 1 auto; min-width:100px;">
-          <label for="mnemonicInput"><strong>Mnemonic phrase</strong></label>
-          <input id="mnemonicInput"
-                 type="password"
-                 autocomplete="off"
-                 class="compact-input"
-                 placeholder="Enter seed phrase"
-                 style="margin-top:4px; width:100%;">
-        </div>
+			<!-- Mnemonic -->
+			<div id="unlock-mnemonic" class="compact-text" style="display:none;">
+			<div class="unlock-section">
+				<div class="unlock-fields-2">
+				<div>
+					<label for="mnemonicInput">Mnemonic phrase</label>
+					<input id="mnemonicInput" type="password" autocomplete="off"
+						class="compact-input" placeholder="Enter seed phrase">
+				</div>
+	
+				<div>
+					<label for="derivationPathInput">Path</label>
+					<input id="derivationPathInput" type="text" autocomplete="off"
+						class="compact-input" value="m/44'/60'/0'/0/0">
+				</div>
+				</div>
 
-        <div style="flex:1 1 auto; min-width:100px;">
-          <label for="derivationPathInput"><strong>Path</strong></label>
-          <input id="derivationPathInput"
-                 type="text"
-                 autocomplete="off"
-                 class="compact-input"
-                 value="m/44'/60'/0'/0/0"
-                 style="margin-top:4px; width:100%;">
-        </div>
+				<div class="unlock-action">
+				<button id="mnemonicUnlockBtn" class="btn" type="button">Unlock</button>
+				</div>
+			</div>
+			</div>
 
-        <div style="flex:0 0 auto;">
-          <button id="mnemonicUnlockBtn"
-                  class="btn"
-                  type="button"
-                  style="white-space:nowrap;">
-            &thinsp;&thinsp; Unlock &thinsp;&thinsp;
-          </button>
-        </div>
-      </div>
-    </div>
+			<!-- Mnemonic + passphrase -->
+			<div id="unlock-mnemonicPass" class="compact-text" style="display:none;">
+			<div class="unlock-section">
+				<div class="unlock-fields-3">
+				 <div>
+					<label for="mnemonicInput2">Mnemonic</label>
+					<input id="mnemonicInput2" type="password" autocomplete="off"
+						class="compact-input" placeholder="Seed phrase">
+				 </div>
+		
+				 <div>
+					<label for="mnemonicPassphraseInput">Passphrase</label>
+					<input id="mnemonicPassphraseInput" type="password" autocomplete="off"
+						class="compact-input" placeholder="Optional">
+				 </div>
 
-    <!-- Mnemonic + passphrase -->
-    <div id="unlock-mnemonicPass" class="compact-text" style="display:none;">
-      <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:flex-end;">
-        <div style="flex:2 1 auto; min-width:100px;">
-          <label for="mnemonicInput2"><strong>Mnemonic</strong></label>
-          <input id="mnemonicInput2"
-                 type="password"
-                 autocomplete="off"
-                 class="compact-input"
-                 placeholder="Seed phrase"
-                 style="margin-top:4px; width:100%;">
-        </div>
+				 <div>
+					<label for="derivationPathInput2">Path</label>
+					<input id="derivationPathInput2" type="text" autocomplete="off"
+						class="compact-input" value="m/44'/60'/0'/0/0">
+				 </div>
+				</div>
 
-        <div style="flex:1 1 auto; min-width:25px;">
-          <label for="mnemonicPassphraseInput"><strong>Passphrase</strong></label>
-          <input id="mnemonicPassphraseInput"
-                 type="password"
-                 autocomplete="off"
-                 class="compact-input"
-                 placeholder="Optional"
-                 style="margin-top:4px; width:100%;">
-        </div>
+				<div class="unlock-action">
+				<button id="mnemonicPassUnlockBtn" class="btn" type="button">Unlock</button>
+				</div>
+			 </div>
+			</div>
 
-        <div style="flex:1 1 auto; min-width:25px;">
-          <label for="derivationPathInput2"><strong>Path</strong></label>
-          <input id="derivationPathInput2"
-                 type="text"
-                 autocomplete="off"
-                 class="compact-input"
-                 value="m/44'/60'/0'/0/0"
-                 style="margin-top:4px; width:100%;">
-        </div>
+		 </div>
 
-        <div style="flex:0 0 auto;">
-          <button id="mnemonicPassUnlockBtn"
-                  class="btn"
-                  type="button"
-                  style="white-space:nowrap;">
-            Unlock
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+		 <!-- Security note (pinned to bottom) -->
+		 <div id="walletAlert" class="alert alert-red compact-text unlock-footer">
+			<strong>Security Note:</strong>
+			&thinsp; Use this tool on an air-gapped machine for maximum security.
+		 </div>
 
-  <!-- Security note (pinned to bottom) -->
-  <div id="walletAlert"
-       class="alert alert-red compact-text"
-       style="margin-top:auto; padding:4px 8px;">
-    <strong>Security Note:</strong>
-    &thinsp; Use this tool on an air-gapped machine for maximum security.
-  </div>
+		 <!-- Unlocked note -->
+		 <div id="walletUnlockedNote" class="muted compact-text" style="margin-top:2px; display:none;"></div>
 
-  <!-- Unlocked note -->
-  <div id="walletUnlockedNote"
-       class="muted compact-text"
-       style="margin-top:2px; display:none;">
-  </div>
+	    </div>
 
-</div>
 
         <!-- Transaction details -->
         <div id="txCard" class="card" aria-label="Decoded request panel"
              style="display:flex; flex-direction:column; min-height:180px;">
 
         <div class="tx-header">
-          <div class="tx-title small">Transaction details</div>
+          <h3 class="card-title" style="margin-bottom:4px; margin-top:4px;">Transaction Details</h3>
 
           <!-- Buttons hidden by default; only shown when transaction details are successfully rendered -->
           <div id="txActions" class="tx-actions" style="display:none;">
@@ -618,13 +661,13 @@
               ">
 
             <div style="flex:0 0 160px;">
-              <div class="compact-text" style="margin-top: 6px;"><strong>SIGNATURE QR</strong></div>
+              <h3 class="card-title" style="margin-top:4px; margin-bottom:-2px;">Signature QR</h3>
               <div id="sigQr" style="width:153px; height:153px; margin-top: 8px;"></div>
             </div>
 
             <div style="flex:1 1 auto;">
               <div class="tx-header" style="margin-top:0;">
-                <div class="compact-text"><strong>UR:ETH-SIGNATURE</strong></div>
+                <h3 class="card-title">UR:ETH-SIGNATURE</h3>
                 <!-- (4) Now acts as a reset button too (implemented in JS), label unchanged -->
                 <button id="clearSigBtn" class="btn secondary" disabled type="button" style="padding:6px 8px;">Clear</button>
               </div>
