@@ -53,7 +53,7 @@ The method generates seed entropy using physical randomness from dice rolls and 
 
 ### Find last (checksum) seed word 
 
-Find the last word for a manually generated seed phrase. Choose a word from the list all valid last words that satisfy the checksum. 
+Find the last word for a manually generated seed phrase. Enter n-1 words generated using dice roll & coin flip or any other method. Choose a word from the list all valid last words that satisfy the checksum. 
 
 <img src="docs/IMG_05.png" alt="Alt text" width="50%" />
 
