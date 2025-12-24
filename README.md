@@ -30,8 +30,6 @@ A solution for creating Ethereum wallets and securely signing transactions offli
 ## Security
 
 The security concept behind using air-gapped systems for signing transactions is to work with two physically separated devices, one of which has no connection to the outside world or any network. In this context, connecting your wallet with Metamask/Rabby allows you to watch your wallet and sign transactions through one-way communication using QR codes.
-## Build
-
 
 ## Build
 
