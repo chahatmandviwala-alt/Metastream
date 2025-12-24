@@ -26,8 +26,8 @@ A solution for creating Ethereum wallets and securely signing transactions offli
 - Connect any wallet to Metamask or Rabby as a hardware wallet
 - Sign transactions using QR codes.
 - Virutal keyboard
-
 <br>
+
 ### Create a new wallet
 
 Choose from 12/15/18/21/24 words for the mnemonic seed phrase. Optionally use a passphrase and a custom derivation path.
