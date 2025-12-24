@@ -1,10 +1,11 @@
 # Metastream
 
-A solution to creating new ethereum wallets and securely signing transactions completely offline.
+A solution for creating Ethereum wallets and securely signing transactions completely offline using air-gapped devices.
 
 ![Alt text](docs/IMG_01.png)
 
-### Warning: Use this tool only on a permanently air-gapped machine for maximum security. Never enter your cold wallet or hardware wallet seedphrase on a device that connects to internet.
+#### Security Tip: Use this tool only on a permanently air-gapped machine for maximum security.
+#### Warning: Never type your cold wallet or hardware wallet seed phrase on a device that connects to the internet.
 
 ## Description
 
