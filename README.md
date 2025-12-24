@@ -29,7 +29,7 @@ A solution for creating Ethereum wallets and securely signing transactions offli
 
 <br>
 
-## Know How To Metastream
+## Know How To
 
 ### Create a new wallet
 
