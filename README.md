@@ -75,9 +75,36 @@ Scan the generated UR:CRYPTO-HDKEY QR code with Metamask or Rabby to connect the
 
 <p align="center"><img src="docs/IMG_08.png" alt="Alt text" width="85%" /></p>
 
-## Security
+### Sign Transaction
+
+Initiate a transaction from the wallet connected to Metamask or Rabby and obtian a signature request QR code. Scan this QR code with Metastream and verify the transaction details. Metastream provides key transaction details including the chain ID, the receiver address, token type, and most importantly the amount. It is of utmost importance to make sure that Metastream shows exactly the same trnasaction details that were used to initiate the trnasaction using Metamask or Rabby.
+
+<p align="center"><img src="docs/IMG_09.png" alt="Alt text" width="85%" /></p>
+
+After verifying the transaction details proceed to safely unlock a wallet. A wallet can be unlocked using a keystore file (.json), a private key file (.txt), a private key, a mnemonic seed phrase or, a mnemonic seed phrase + passphrase. Successfully unlocking a wallet shows the public address of the wallet.   
+
+
+<p align="center"><img src="docs/IMG_10.png" alt="Alt text" width="60%" /></p>
+
+Sign the transaction after unlocking the wallet to generate a signature QR code. Scan this signature QR code using the 'Get Signature' option in Metamask/Rabby to complete the transaction. Since the entire transaction signing process happens through QR codes, no wired or wireless connection is required between Metamask/Rabby and Metastream.  
+
+<p align="center"><img src="docs/IMG_11.png" alt="Alt text" width="60%" /></p>
+
+### Virtual Keyboard
+
+Use the inbuilt virtual keyboard to add an extra layer of security for sensitive details such as the seed phrase, passphrase and keystore password. Virtual keyboards are important for crypto wallets because they reduce exposure to keyloggers and other malware that capture physical keystrokes.
+
+<p align="center"><img src="docs/IMG_12.png" alt="Alt text" width="60%" /></p>
+
+## Achieve hardware-wallet-like security
 
 The security concept behind using air-gapped systems for signing transactions is to work with two physically separated devices, one of which has no connection to the outside world or any network. In this context, connecting your wallet with Metamask/Rabby allows you to watch your wallet and sign transactions through one-way communication using QR codes.
+
+## Supply Chain Attacks
+
+In recent years, multiple cryptocurrency wallets have been targeted by attackers attempting to steal users’ funds, with supply chain attacks being a common attack vector. In such attacks, an adversary compromises a third-party dependency to inject malicious code into a wallet. Metastream deliberately sources dependencies only from well-established and reputable hardware wallet developers such as Keystone, OneKey, and NGRAVE, whose products and security practices are widely trusted within the cryptocurrency ecosystem.
+
+Disclaimer: Metastream’s security model relies on the continued integrity and trustworthy behavior of these upstream projects. If any of these dependency providers were to act maliciously, become compromised, or deviate significantly from accepted security practices, it would be inadvisable to use Metastream until the risk has been properly assessed and mitigated.
 
 ## Build
 
