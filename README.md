@@ -22,7 +22,7 @@ A solution for creating Ethereum wallets and securely signing transactions offli
 - Generate seed phrase through dice roll & coin flip
 - Find the last word (checksum) for a manually generated seed phrase 
 - Supports custom derivation paths (m/44'/60'/n'/)
-- Encrypt wallet as a keystore file (UTC/JSON)
+- Encrypt and export wallet as a keystore file (UTC/JSON)
 - Connect any wallet to Metamask or Rabby as a hardware wallet
 - Sign transactions using QR codes.
 - Virutal keyboard
