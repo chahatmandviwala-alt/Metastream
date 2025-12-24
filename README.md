@@ -4,7 +4,7 @@ A solution for creating Ethereum wallets and securely signing transactions offli
 
 <br>
 
-![Alt text](docs/IMG_02.png)
+![Alt text](docs/IMG_01.png)
 
 #### Security Tip: Use this application only on a permanently air-gapped machine for maximum security.
 #### Warning: Never type your cold wallet or hardware wallet seed phrase on a device that connects to the internet.
