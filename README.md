@@ -15,13 +15,23 @@ A solution for creating Ethereum wallets and securely signing transactions offli
 
 ## Features
 
-- TBC
-- TBC
-- TBC
+- Completely offline
+- Completely air-gapped, no wired/wiresless connections required
+- Create new ethereum wallets
+- Optional passphrase support
+- Generate seed phrase through dice roll & coin flip
+- Find the last word (checksum) for a manually generated seed phrase 
+- Supports custom derivation paths (m/44'/60'/n'/)
+- Encrypt wallet as a keystore file (UTC/JSON)
+- Connect any wallet to Metamask or Rabby as a hardware wallet
+- Sign transactions using QR codes.
+- Virutal keyboard
 
 ## Security
 
-The security concept behind using air-gapped systems for signing transactions is to work with two physically separated devices, one of which has no connection to the outside world or any network. In this context, connecting your paper wallet with Metamask/Rabby allows you to watch your paper wallet and sign transactions through one-way communication using QR codes. This tool is only for connect paper wallet to Metamask or Rabby.
+The security concept behind using air-gapped systems for signing transactions is to work with two physically separated devices, one of which has no connection to the outside world or any network. In this context, connecting your wallet with Metamask/Rabby allows you to watch your wallet and sign transactions through one-way communication using QR codes.
+## Build
+
 
 ## Build
 
@@ -55,7 +65,3 @@ Alternatively run locally in default browser:
 
 If you discover a security vulnerability within this application, please send an e-mail to chahat.mandviwala@gmail.com. All security vulnerabilities will be promptly addressed.
 
-
-## Related Projects
-
-- TBC
