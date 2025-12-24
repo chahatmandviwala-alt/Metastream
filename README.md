@@ -70,7 +70,7 @@ Obtian a BC-UR encoded CRYPTO-HDKEY from a seed phrase (optional passphrase and 
 
 Scan the generated UR:CRYPTO-HDKEY QR code with Metamask or Rabby to connect the wallet.
 
-<img src="docs/IMG_07.png" alt="Alt text" width="50%" />
+<img src="docs/IMG_08.png" alt="Alt text" width="100%" />
 
 ## Security
 
