@@ -57,6 +57,21 @@ Find the last word for a manually generated seed phrase. Enter n-1 words generat
 
 <img src="docs/IMG_05.png" alt="Alt text" width="50%" />
 
+
+### Connect wallet
+
+Connect a newly created wallet or any other wallet to Metamask or Rabby as a hardware wallet. 
+
+<img src="docs/IMG_06.png" alt="Alt text" width="50%" />
+
+Obtian a BC-UR encoded CRYPTO-HDKEY from a seed phrase (optional passphrase and custom derivation path). Using UR:CRYPTO-HDKEY QR codes, any wallet can interact with MetaMask or Rabby in the same way as a hardware wallet (e.g. Keystone, Onekey, nGRAVE), effectively emulating hardware wallet behavior without a direct physical connection and without exposing the private keys. 
+
+<img src="docs/IMG_07.png" alt="Alt text" width="50%" />
+
+Scan the generated UR:CRYPTO-HDKEY QR code with Metamask or Rabby to connect the wallet.
+
+<img src="docs/IMG_07.png" alt="Alt text" width="50%" />
+
 ## Security
 
 The security concept behind using air-gapped systems for signing transactions is to work with two physically separated devices, one of which has no connection to the outside world or any network. In this context, connecting your wallet with Metamask/Rabby allows you to watch your wallet and sign transactions through one-way communication using QR codes.
