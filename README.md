@@ -96,7 +96,9 @@ Use the inbuilt virtual keyboard to add an extra layer of security for sensitive
 
 <p align="center"><img src="docs/IMG_12.png" alt="Alt text" width="60%" /></p>
 
-## Achieve hardware-wallet-like security
+<br>
+
+## Hardware-wallet-like security
 
 The security concept behind using air-gapped systems for signing transactions is to work with two physically separated devices, one of which has no connection to the outside world or any network. In this context, connecting your wallet with Metamask/Rabby allows you to watch your wallet and sign transactions through one-way communication using QR codes.
 
