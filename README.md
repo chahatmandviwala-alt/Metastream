@@ -51,6 +51,12 @@ The method generates seed entropy using physical randomness from dice rolls and 
 
 <img src="docs/IMG_04.png" alt="Alt text" width="50%" />
 
+### Find last (checksum) seed word 
+
+Find the last word for a manually generated seed phrase. Choose a word from the list all valid last words that satisfy the checksum. 
+
+<img src="docs/IMG_05.png" alt="Alt text" width="50%" />
+
 ## Security
 
 The security concept behind using air-gapped systems for signing transactions is to work with two physically separated devices, one of which has no connection to the outside world or any network. In this context, connecting your wallet with Metamask/Rabby allows you to watch your wallet and sign transactions through one-way communication using QR codes.
