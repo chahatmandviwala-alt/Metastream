@@ -7,7 +7,7 @@
 #### Security Tip: Use this application only on a permanently air-gapped machine for maximum security.
 #### Warning: Never type your cold wallet or hardware wallet seed phrase on a device that connects to the internet.
 
-<h2 style="margin-top: 12px;">Description</h2>
+<h2 style="margin-top: 12px; martin-top: 12px;">Description</h2>
 
 - TBC
 
