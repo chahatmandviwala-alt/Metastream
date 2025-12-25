@@ -27,9 +27,7 @@ A solution for creating Ethereum wallets and securely signing transactions offli
 - Sign transactions using QR codes.
 - Virutal keyboard
 
-<br>
-
-## Know How To
+<p style="margin-top: 12px;"> ## Know How To </p>
 
 ### Create a new wallet
 
