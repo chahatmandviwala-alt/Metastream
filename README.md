@@ -102,19 +102,7 @@ In recent years, multiple cryptocurrency wallets have been targeted by attackers
 
 #### Disclaimer: Metastream’s security model relies on the continued integrity and trustworthy behavior of these upstream projects. If any of these dependency providers were to act maliciously, become compromised, or deviate significantly from accepted security practices, it would be inadvisable to use Metastream until the risk has been properly assessed and mitigated.
 
-<h2 style="margin-top: 12px;">Install</h2>
-
-Download & Install Node.js: https://nodejs.org
-
-Minimum requirements: Node.js v20 & npm v9
-
-Verify node.js installation:
-
-```bash
-node --version
-npm --version
-```
-
+<h2 style="margin-top: 12px;">Build</h2>
 
 Clone the repo:
 
@@ -122,20 +110,28 @@ Clone the repo:
 git clone https://github.com/chahatmandviwala-alt/Metastream.git
 ```
 
-
-Install on Linux:
+Install dependencies:
 
 ```bash
-sh LinxInstall.sh
+npm install
 ```
 
-
-Install on Windows:
-
-Install the app by double-clicking 'WinInstall.bat' or in cmd:
+Run locally:
 
 ```bash
-WinInstall.bat
+npm run electron:dev
+```
+
+Build portable Windows exectubale:
+
+```bash
+npm run dist:win:portable
+```
+
+Build portable Linux AppImage:
+
+```bash
+npm run dist:linux:appimage
 ```
 
 
