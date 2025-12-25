@@ -2,8 +2,6 @@
 
 A solution for creating Ethereum wallets and securely signing transactions offline using air-gapped devices.
 
-<p style="margin-bottom: 24px;"></p>
-
 ![Alt text](docs/IMG_001.png)
 
 #### Security Tip: Use this application only on a permanently air-gapped machine for maximum security.
