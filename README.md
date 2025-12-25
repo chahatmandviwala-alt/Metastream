@@ -9,7 +9,7 @@ A solution for creating Ethereum wallets and securely signing transactions offli
 
 <h2 style="margin-top: 12px; martin-top: 12px;">Description</h2>
 
-- TBC
+Metastream is a secure offline wallet solution that lets you manage ethereum wallets and sign transactions without exposing private keys to the internet or any third-party software. It runs on fully air-gapped systems and uses controlled, one-way communication using QR codes to securely authorize transactions. Metastream offers similar security features to a hardware wallet without needing a dedicated device. 
 
 <h2 style="margin-top: 12px;">Features</h2>
 
