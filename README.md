@@ -104,14 +104,16 @@ In recent years, multiple cryptocurrency wallets have been targeted by attackers
 
 <h2 style="margin-top: 12px;">Build</h2>
 
+Download & Install Node.js: https://nodejs.org
+
+Minimum requirements: Node.js v20 & npm v9
+
 Verify node.js installation:
 
 ```bash
 node --version
 npm --version
 ```
-
-Minimum requirements: Node.js v20 & npm v9
 
 
 Clone the repo:
