@@ -126,7 +126,7 @@ git clone https://github.com/chahatmandviwala-alt/Metastream.git
 Install on Linux:
 
 ```bash
-sh install.sh
+sh LinxInstall.sh
 ```
 
 
@@ -135,7 +135,7 @@ Intall on Windows:
 Install the app by double-clicking 'install.bat' or in cmd:
 
 ```bash
-win_install.bat
+WinInstall.bat
 ```
 
 
