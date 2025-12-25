@@ -1,5 +1,5 @@
 {
-  "name": "M E T A S T R E A M",
+  "name": "Metastream",
   "version": "1.0.0",
   "description": "",
   "main": "electron/main.js",
@@ -62,3 +62,4 @@
     }
   }
 }
+
