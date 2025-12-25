@@ -134,3 +134,8 @@ Alternatively run locally in default browser:
 
 If you discover a security vulnerability within this application, please send an e-mail to chahat.mandviwala@gmail.com. All security vulnerabilities will be promptly addressed.
 
+<br>
+
+If this project has been helpful and you’d like to support my work, contributions are always appreciated.
+You can contribute using ETH or any ERC-20 token by sending it to: 0x1ce87a3a77337aAcA113Aa1C205b272d492097dc.
+Every bit helps and is sincerely appreciated.
