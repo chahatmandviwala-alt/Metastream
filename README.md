@@ -134,14 +134,14 @@ npm run start
 ```
 
 
-Alternatively run locally in default browser (on Linux):
+Alternatively autorun in the default browser (on Linux):
 
 ```bash
 ./Metastream.sh
 ```
 
 
-Alternatively run locally in default browser (on Windows):
+Alternatively autorun in the default browser (on Windows):
 
 ```bash
 ./Metastream.bat
