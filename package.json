@@ -1,11 +1,16 @@
 {
-  "name": "ethsignrequest",
+  "name": "M E T A S T R E A M",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "electron/main.js",
   "scripts": {
-    "start": "node server.js & sleep 1 && xdg-open http://localhost:3000",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "open:web": "node -e \"const open=require('open'); open('http://127.0.0.1:'+(process.env.PORT||3000));\"",
+    "dev:web": "cross-env HOST=127.0.0.1 PORT=3000 node server.js",
+    "electron:dev": "cross-env HOST=127.0.0.1 PORT=43110 electron .",
+    "dist:win:portable": "electron-builder --win portable",
+    "dist:linux:appimage": "electron-builder --linux AppImage",
+    "dist": "electron-builder -mwl"
   },
   "keywords": [],
   "author": "",
@@ -13,15 +18,47 @@
   "dependencies": {
     "@keystonehq/bc-ur-registry-eth": "^0.22.1",
     "@keystonehq/ur-decoder": "^0.12.2",
+    "@ngraveio/bc-ur": "^1.1.13",
     "@onekeyfe/hd-air-gap-sdk": "^1.0.0-alpha.9",
-    "ethers": "^6.15.0",
-    "express": "^5.1.0",
-    "rlp": "^3.0.0",
-	"qrcode": "^1.5.4",
-	"tiny-secp256k1": "^2.2.4",
-	"@ngraveio/bc-ur": "^1.1.13",
     "bip32": "^5.0.0",
     "bip39": "^3.1.0",
-    "cbor": "^10.0.11"
+    "cbor": "^10.0.11",
+    "ethers": "^6.15.0",
+    "express": "^5.1.0",
+    "open": "^9.1.0",
+    "qrcode": "^1.5.4",
+    "rlp": "^3.0.0",
+    "tiny-secp256k1": "^2.2.4"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.metastream.desktop",
+    "productName": "Metastream",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!**/*.md",
+      "!**/.git/**"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png",
+      "category": "Utility"
+    }
   }
 }
