@@ -31,15 +31,12 @@ set "OUTPUT_FILE=Metastream.bat"
 (
 echo @echo off
 echo setlocal
-echo rem --- change the port if you like ---
-echo set PORT=3000
 echo.
 echo cd /d "%%~dp0"
 echo.
-echo start "Metastream" cmd /c "node server.js"
+echo start "Metastream" cmd /c "npm run electron:dev"
 echo.
 echo timeout /t 2 /nobreak ^>nul
-echo start "" http://localhost:%%PORT%%
 echo.
 echo endlocal
 ) > "%OUTPUT_FILE%"
