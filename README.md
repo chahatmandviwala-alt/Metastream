@@ -1,6 +1,6 @@
 # Metastream
 
-<p style="margin-bottom: 12px;">A solution for creating Ethereum wallets and securely signing transactions offline using air-gapped devices.</p>
+<p style="margin-bottom: 16px;">A solution for creating Ethereum wallets and securely signing transactions offline using air-gapped devices.</p>
 
 ![Alt text](docs/IMG_001.png)
 
