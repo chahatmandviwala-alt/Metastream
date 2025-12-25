@@ -102,7 +102,7 @@ In recent years, multiple cryptocurrency wallets have been targeted by attackers
 
 Disclaimer: Metastream’s security model relies on the continued integrity and trustworthy behavior of these upstream projects. If any of these dependency providers were to act maliciously, become compromised, or deviate significantly from accepted security practices, it would be inadvisable to use Metastream until the risk has been properly assessed and mitigated.
 
-## Build
+<h2 style="margin-top: 12px;">Build</h2>
 
 Clone the repo:
 
