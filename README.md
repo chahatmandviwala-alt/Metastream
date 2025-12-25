@@ -111,7 +111,7 @@ node --version
 npm --version
 ```
 
-Minimum requirements: Node.js v20; npm v9
+Minimum requirements: Node.js v20 & npm v9
 
 
 Clone the repo:
@@ -130,7 +130,7 @@ sh install.sh
 
 Intall on Windows:
 
-Install the app by double-clicking install.bat or in cmd:
+Install the app by double-clicking 'install.bat' or in cmd:
 
 ```bash
 install.bat
