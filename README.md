@@ -73,7 +73,7 @@ Scan the generated UR:CRYPTO-HDKEY QR code with Metamask or Rabby to connect the
 
 ### Sign Transaction
 
-Initiate a transaction from the wallet connected to Metamask or Rabby and obtian a signature request QR code. Scan this QR code with Metastream and verify the transaction details. Metastream provides key transaction details including the chain ID, the receiver address, token type, and most importantly the amount. It is of utmost importance to make sure that Metastream shows exactly the same trnasaction details that were used to initiate the trnasaction using Metamask or Rabby.
+Initiate a transaction from the wallet connected to Metamask or Rabby and obtian a signature request QR code. Scan this QR code with Metastream and verify the transaction details. Metastream provides key transaction details including the chain ID, the receiver address, token type, and most importantly the amount. It is of utmost importance to make sure that Metastream shows exactly the same transaction details that were used to initiate the transaction using Metamask or Rabby.
 
 <p align="center"><img src="docs/IMG_09.png" alt="Alt text" width="85%" /></p>
 
@@ -92,7 +92,7 @@ Use the inbuilt virtual keyboard to add an extra layer of security for sensitive
 
 <p align="center"><img src="docs/IMG_12.png" alt="Alt text" width="60%" /></p>
 
-<h2 style="margin-top: 12px;">Hardware wallet like security</h2>
+<h2 style="margin-top: 12px;">Hardware-wallet-level security</h2>
 
 The security model of Metastream is designed around strict offline isolation and true air-gapped operation. Metastream can be deployed on a physically isolated system that has no wired or wireless connectivity of any kind, eliminating remote attack vectors. In this configuration, private keys are generated, stored, and used exclusively on an offline device and are never exposed to the internet, browser extensions, or any other software wallet. Transaction data is transferred in a controlled, one-way manner via QR codes, ensuring that signing occurs entirely offline. When installed on a live, encrypted Linux distribution such as Tails or MX Live, with all networking drivers removed, Metastream can theoretically approach hardware-wallet–level security. By creating a new wallet, encrypting it as a keystore file, and storing that file on a dedicated encrypted flash drive (e.g., a Kingston IronKey), the attack surface is reduced to the minimum. This provides strong protection against malware, key loggers, and supply-chain risks commonly associated with online or browser-based wallets.
 
