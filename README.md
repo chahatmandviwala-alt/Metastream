@@ -104,6 +104,19 @@ In recent years, multiple cryptocurrency wallets have been targeted by attackers
 
 <h2 style="margin-top: 12px;">Build</h2>
 
+Verify node.js installation:
+
+```bash
+node --version
+npm --version
+```
+
+Minimum requirements: 
+
+Node.js v20 or later
+npm v9 or later
+
+
 Clone the repo:
 
 ```bash
@@ -123,7 +136,15 @@ Run locally in any browser:
 npm run start
 ```
 
-Alternatively run locally in default browser:
+
+Alternatively run locally in default browser (on Linux):
+
+```bash
+./Metastream.sh
+```
+
+
+Alternatively run locally in default browser (on Windows):
 
 ```bash
 ./Metastream.bat
