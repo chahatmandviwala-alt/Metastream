@@ -54,10 +54,33 @@ function createWindow() {
 
   mainWindow.loadURL(URL);
 
-  // Helpful if the server isn't ready yet or the port is wrong
+  // Retry if the server isn't ready yet (common first-run race condition)
+  let retryCount = 0;
+  const MAX_RETRIES = 40;     // ~10 seconds at 250ms
+  const RETRY_DELAY = 250;
+
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
-    console.error("did-fail-load:", { errorCode, errorDescription, validatedURL });
+    // Only handle failures for the URL we expect
     if (!mainWindow) return;
+    if (!validatedURL || !validatedURL.startsWith(URL)) return;
+
+    // Connection-related errors: retry
+    // -102 = ERR_CONNECTION_REFUSED
+    // -6   = ERR_CONNECTION_FAILED (sometimes seen)
+    // -105 = ERR_NAME_NOT_RESOLVED (rare, but harmless to retry)
+    if (errorCode === -102 || errorCode === -6 || errorCode === -105) {
+      if (retryCount++ < MAX_RETRIES) {
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.loadURL(URL).catch(() => {});
+          }
+        }, RETRY_DELAY);
+        return;
+      }
+    }
+
+    // If we get here, retries are exhausted or it's a different error: show your error page
+    console.error("did-fail-load:", { errorCode, errorDescription, validatedURL });
 
     mainWindow.loadURL(
       "data:text/plain;charset=utf-8," +
