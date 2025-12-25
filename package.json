@@ -51,15 +51,16 @@
       "target": [
         "portable"
       ],
-      "icon": "public/tabs/docs/icon.ico"
+      "icon": "public/tabs/docs/app_icon.ico"
     },
     "linux": {
       "target": [
         "AppImage"
       ],
-      "icon": "public/tabs/docs/icon.png",
+      "icon": "public/tabs/docs/app_icon.png",
       "category": "Utility"
     }
   }
 }
+
 
