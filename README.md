@@ -134,17 +134,17 @@ npm run start
 ```
 
 
-Alternatively autorun in the default browser (on Linux):
+Alternatively install an executable shell script to autorun in the default browser (on Linux):
 
 ```bash
-./Metastream.sh
+sh install.sh
 ```
 
 
-Alternatively autorun in the default browser (on Windows):
+Alternatively install an executable .bat file to autorun in the default browser (on Windows):
 
 ```bash
-./Metastream.bat
+install.bat
 ```
 
 
