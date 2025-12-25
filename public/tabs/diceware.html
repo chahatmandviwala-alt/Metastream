@@ -453,6 +453,26 @@
     line-height: 1.1;
     text-align:center;
   }
+  #simulateBtn .icon{
+    width: 1.6em;
+    height: 1.6em;
+    vertical-align: -0.15em;
+    margin-right: 0.25em;
+  }
+  .coin-pill{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+
+  .coin-pill .icon{
+    width: 1.2em;   /* increase/decrease as needed */
+    height: 1.2em;
+    flex: 0 0 auto;
+	margin-left: -4px;
+  }
+
+
   </style>
 </head>
 <body>
@@ -491,7 +511,7 @@
 
         <div class="control-right" aria-label="Primary actions">
           <button id="simulateBtn" class="btn primary" type="button">
-            <span aria-hidden="true">🎲</span>
+            <img src="./docs/dice.svg" alt="" aria-hidden="true" class="icon">
             <span id="simulateBtnText">Simulate</span>
           </button>
 
@@ -512,13 +532,14 @@
           <div class="result-box">
             <div class="section-label">Coin flip</div>
             <div class="coin-pill">
-              <span aria-hidden="true" style="margin-left: -4px;">🪙</span>
+              <img src="./docs/coin.svg" alt="" aria-hidden="true" class="icon">
               <select id="coinSelect" class="coin-select" aria-label="Coin flip">
                 <option value=""></option>
-                <option value="Heads">Heads</option>
-                <option value="Tails">Tails</option>
-              </select>
-            </div>
+			    <option value="Heads">Heads</option>
+				<option value="Tails">Tails</option>
+			  </select>
+			</div>
+
           </div>
 
           <div class="result-box">
