@@ -111,7 +111,7 @@ node --version
 npm --version
 ```
 
-Minimum requirements: Node.js v20 and npm v9
+Minimum requirements: Node.js v20 & npm v9
 
 
 Clone the repo:
