@@ -102,7 +102,7 @@ In recent years, multiple cryptocurrency wallets have been targeted by attackers
 
 #### Disclaimer: Metastream’s security model relies on the continued integrity and trustworthy behavior of these upstream projects. If any of these dependency providers were to act maliciously, become compromised, or deviate significantly from accepted security practices, it would be inadvisable to use Metastream until the risk has been properly assessed and mitigated.
 
-<h2 style="margin-top: 12px;">Build</h2>
+<h2 style="margin-top: 12px;">Install</h2>
 
 Download & Install Node.js: https://nodejs.org
 
@@ -130,7 +130,7 @@ sh LinxInstall.sh
 ```
 
 
-Intall on Windows:
+Install on Windows:
 
 Install the app by double-clicking 'WinInstall.bat' or in cmd:
 
