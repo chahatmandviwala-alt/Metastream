@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>METASTREAM — Info</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg2: #111827;
+      --hover: #1f2937;
+      --text: #111827;
+      --muted: #4b5563;
+      --card: #ffffff;
+      --border: rgba(17, 24, 39, 0.10);
+      --accent: #3b82f6;
+      --shadow: 0 16px 40px rgba(0,0,0,0.10);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f3f4f6;
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 88%; /* 12% smaller for all non-heading text */
+    }
+
+    /* Top bar (inspired by index.html sidebar palette) */
+    .topbar {
+      background: linear-gradient(180deg, var(--bg2), var(--bg));
+      color: #e5e7eb;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 18px 18px 16px 18px;
+    }
+
+    .topbar-inner {
+      max-width: 980px;
+      margin: 0 auto;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      color: rgba(229,231,235,0.85);
+      font-size: 13px;
+      max-width: 620px;
+      text-align: right;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 22px auto;
+      padding: 0 18px 26px 18px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 18px;
+    }
+
+    /* Typography */
+    h1 {
+      margin: 6px 0 10px 0;
+      font-size: 20px;
+      text-align: center;
+    }
+    h2 {
+      margin: 20px 0 10px 0;
+      font-size: 16px;
+      color: #111827;
+    }
+    h3 {
+      margin: 16px 0 8px 0;
+      font-size: 14px;
+      color: #111827;
+    }
+    h4 {
+      margin: 12px 0 8px 0;
+      font-size: 13px;
+      color: #111827;
+    }
+    p {
+      margin: 10px 0;
+      color: #374151;
+    }
+
+    ul {
+      margin: 10px 0 12px 22px;
+      padding: 0;
+      color: #374151;
+    }
+    li { margin: 6px 0; }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    a:hover { text-decoration: underline; }
+
+    /* Images */
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 14px;
+      border: 1px solid rgba(17,24,39,0.08);
+      box-shadow: 0 10px 26px rgba(0,0,0,0.08);
+    }
+    p.img {
+      margin: 14px 0;
+    }
+    p[align="center"] {
+      margin: 16px 0;
+    }
+
+    /* Security/Warning Callout (subtle red) */
+    .callout {
+      border: 1px solid rgba(220, 38, 38, 0.25);
+      background: rgba(220, 38, 38, 0.06);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin: 18px auto;        /* center horizontally */
+      color: #374151;
+      font-size: 1em;
+      max-width: 760px;         /* match comfortable text width */
+      width: 100%;
+    }
+
+    .callout p {
+      margin: 6px 0;
+      color: inherit;
+      font-size: inherit;
+      line-height: inherit;
+    }
+    .callout strong {
+      color: #7f1d1d;
+    }
+
+    /* Wallet address styling */
+    .wallet-address {
+      color: #2ecc71; /* green */
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-weight: 600;
+      word-break: break-all;
+    }
+	
+	.callout {
+      text-align: center;
+    }
+
+    /* Make the legacy README inline styles less jarring */
+    h2[style] { margin-top: 20px !important; }
+  </style>
+</head>
+<body>
+
+  <div class="wrap">
+    <div class="card" id="content">
+      <h1>M&thinsp;E&thinsp;T&thinsp;A&thinsp;S&thinsp;T&thinsp;R&thinsp;E&thinsp;A&thinsp;M</h1>
+
+      <p style="text-align: center; margin-bottom: 18px;">
+        A solution for creating Ethereum wallets and securely signing transactions offline using air-gapped devices.
+      </p>
+
+      <h4>Security Tip: Use this application only on a permanently air-gapped machine for maximum security.</h4>
+      <h4>Warning: Never type your cold wallet or hardware wallet seed phrase on a device that connects to the internet.</h4>
+
+      <h2 style="margin-top: 12px; martin-top: 12px;">Description</h2>
+
+      <p>
+        Metastream is a secure offline wallet solution that lets you manage ethereum wallets and sign transactions without exposing
+        private keys to the internet or any third-party software. It runs on fully air-gapped systems and uses controlled, one-way
+        communication using QR codes to securely authorize transactions. Metastream offers similar security features to a hardware wallet
+        without needing a dedicated device.
+      </p>
+
+      <h2 style="margin-top: 12px;">Features</h2>
+
+      <ul>
+        <li>Completely offline</li>
+        <li>Completely air-gapped, no wired/wiresless connections required</li>
+        <li>Create new ethereum wallets</li>
+        <li>Optional passphrase support</li>
+        <li>Generate seed phrase through dice roll &amp; coin flip</li>
+        <li>Find the last word (checksum) for a manually generated seed phrase</li>
+        <li>Supports custom derivation paths (m/44'/60'/n'/)</li>
+        <li>Encrypt and export wallet as a keystore file (UTC/JSON)</li>
+        <li>Connect any wallet to Metamask or Rabby as a hardware wallet</li>
+        <li>Sign transactions using QR codes.</li>
+        <li>Virutal keyboard</li>
+      </ul>
+
+      <h2 style="margin-top: 12px;">Know How To</h2>
+
+      <h3>Create a new wallet</h3>
+
+      <p>Choose from 12/15/18/21/24 words for the mnemonic seed phrase. Optionally use a passphrase and a custom derivation path.</p>
+
+      <p>
+        A seed phrase is generated by creating cryptographically secure entropy using ethers.randomBytes(bytes) and converting that entropy
+        into a BIP-39 mnemonic seed phrase. This ensures the resulting seed phrase has sufficient randomness for secure key generation.
+      </p>
+
+      <p align="center"><img src="docs/IMG_02.png" alt="Alt text" width="50%" /></p>
+
+      <h3>Export wallet</h3>
+
+      <p>Export the newly created wallet as an encrypted keystore file.</p>
+
+      <p>
+        The keystore file encrypts the private key with a user-defined password and stores it in a UTC/JSON file. The password must be strong
+        and securely kept. The encryption process is designed to resist brute-force attacks by making each password guess computationally expensive.
+        Losing the password means the private keys are permanently lost. It is always recommended to also back up the seed phrase as a reliable
+        recovery method.
+      </p>
+
+      <p align="center"><img src="docs/IMG_03.png" alt="Alt text" width="50%" /></p>
+
+      <h3>Dice roll &amp; Coin flip</h3>
+
+      <p>Do not trust the seed phrase generated by a machine? Use this tool generate a seed phrase using 5 dice rolls and a coin flip.</p>
+
+      <p>
+        The method generates seed entropy using physical randomness from dice rolls and coin flips, which are mapped to BIP-39 words using a
+        predefined table. The predefined table can be found
+        <a href="https://bitbox.swiss/bitbox02/BitBox_Diceware_LookupTable.pdf" target="_blank" rel="noreferrer">here</a>.
+        This process determines the first words (n-1) of the seed phrase, while the final word is calculated as the checksum.
+      </p>
+
+      <p align="center"><img src="docs/IMG_04.png" alt="Alt text" width="50%" /></p>
+
+      <h3>Find last (checksum) seed word</h3>
+
+      <p>
+        Find the last word for a manually generated seed phrase. Enter n-1 words generated using dice roll &amp; coin flip or any other method.
+        Choose a word from the list all valid last words that satisfy the checksum.
+      </p>
+
+      <p align="center"><img src="docs/IMG_05.png" alt="Alt text" width="50%" /></p>
+
+      <h3>Connect wallet</h3>
+
+      <p>Connect a newly created wallet or any other wallet to Metamask or Rabby as a hardware wallet.</p>
+
+      <p align="center"><img src="docs/IMG_06.png" alt="Alt text" width="50%" /></p>
+
+      <p>
+        Obtian a BC-UR encoded CRYPTO-HDKEY from a seed phrase (optional passphrase and custom derivation path). Using UR:CRYPTO-HDKEY QR codes,
+        any wallet can interact with MetaMask or Rabby in the same way as a hardware wallet (e.g. Keystone, Onekey, nGRAVE), effectively emulating
+        hardware wallet behavior without a direct physical connection and without exposing the private keys.
+      </p>
+
+      <p align="center"><img src="docs/IMG_07.png" alt="Alt text" width="50%" /></p>
+
+      <p>Scan the generated UR:CRYPTO-HDKEY QR code with Metamask or Rabby to connect the wallet.</p>
+
+      <p align="center"><img src="docs/IMG_08.png" alt="Alt text" width="65%" /></p>
+
+      <h3>Sign Transaction</h3>
+
+      <p>
+        Initiate a transaction from the wallet connected to Metamask or Rabby and obtian a signature request QR code. Scan this QR code with
+        Metastream and verify the transaction details. Metastream provides key transaction details including the chain ID, the receiver address,
+        token type, and most importantly the amount. It is of utmost importance to make sure that Metastream shows exactly the same transaction
+        details that were used to initiate the transaction using Metamask or Rabby.
+      </p>
+
+      <p align="center"><img src="docs/IMG_09.png" alt="Alt text" width="65%" /></p>
+
+      <p>
+        After verifying the transaction details proceed to safely unlock a wallet. A wallet can be unlocked using a keystore file (.json),
+        a private key file (.txt), a private key, a mnemonic seed phrase or, a mnemonic seed phrase + passphrase. Successfully unlocking a wallet
+        shows the public address of the wallet.
+      </p>
+
+      <p align="center"><img src="docs/IMG_10.png" alt="Alt text" width="50%" /></p>
+
+      <p>
+        Sign the transaction after unlocking the wallet to generate a signature QR code. Scan this signature QR code using the 'Get Signature'
+        option in Metamask/Rabby to complete the transaction. Since the entire transaction signing process happens through QR codes, no wired or
+        wireless connection is required between Metamask/Rabby and Metastream.
+      </p>
+
+      <p align="center"><img src="docs/IMG_11.png" alt="Alt text" width="50%" /></p>
+
+      <h3>Virtual Keyboard</h3>
+
+      <p>
+        Use the inbuilt virtual keyboard to add an extra layer of security for sensitive details such as the seed phrase, passphrase and keystore
+        password. Virtual keyboards are important for crypto wallets because they reduce exposure to keyloggers and other malware that capture
+        physical keystrokes.
+      </p>
+
+      <p align="center"><img src="docs/IMG_12.png" alt="Alt text" width="50%" /></p>
+
+      <h2 style="margin-top: 12px;">Hardware-wallet-level security</h2>
+
+      <p>
+        The security model of Metastream is designed around strict offline isolation and true air-gapped operation. Metastream can be deployed on a
+        physically isolated system that has no wired or wireless connectivity of any kind, eliminating remote attack vectors. In this configuration,
+        private keys are generated, stored, and used exclusively on an offline device and are never exposed to the internet, browser extensions, or
+        any other software wallet. Transaction data is transferred in a controlled, one-way manner via QR codes, ensuring that signing occurs entirely
+        offline. When installed on a live, encrypted Linux distribution such as Tails or MX Live, with all networking drivers removed, Metastream can
+        theoretically approach hardware-wallet–level security. By creating a new wallet, encrypting it as a keystore file, and storing that file on a
+        dedicated encrypted flash drive (e.g., a Kingston IronKey), the attack surface is reduced to the minimum. This provides strong protection against
+        malware, key loggers, and supply-chain risks commonly associated with online or browser-based wallets.
+      </p>
+
+      <h2 style="margin-top: 12px;">Supply chain attacks</h2>
+
+      <p>
+        In recent years, multiple cryptocurrency wallets have been targeted by attackers attempting to steal users’ funds, with supply chain attacks
+        being a common attack vector. In such attacks, an adversary compromises a third-party dependency to inject malicious code into a wallet.
+        Metastream deliberately sources dependencies only from well-established and reputable hardware wallet developers such as Keystone, OneKey, and
+        NGRAVE, whose products and security practices are widely trusted within the cryptocurrency ecosystem.
+      </p>
+
+      <h4>
+        Disclaimer: Metastream’s security model relies on the continued integrity and trustworthy behavior of these upstream projects. If any of these
+        dependency providers were to act maliciously, become compromised, or deviate significantly from accepted security practices, it would be inadvisable
+        to use Metastream until the risk has been properly assessed and mitigated.
+      </h4>
+
+      <h2 style="margin-top: 12px;">Disclosing Security Vulnerabilities</h2>
+
+      <p>If you discover a security vulnerability within this application, please send an e-mail to chahat.mandviwala@gmail.com. All security vulnerabilities will be promptly addressed.</p>
+
+      <h2 style="margin-top: 12px;">Support the Project</h2>
+
+      <p>If this project has been helpful and you’d like to support my work, contributions are always appreciated.</p>
+
+      <p>
+        You can contribute using ETH or any ERC-20 token by sending it to:
+        <span class="wallet-address">0x1ce87a3a77337aAcA113Aa1C205b272d492097dc</span>.
+      </p>
+
+      <p>Every bit helps and is sincerely appreciated.</p>
+	  
+      <h2 style="margin-top: 12px;">LICENSE</h2>
+
+      <p>MIT License</p>
+	  
+	  <p>Copyright (c) 2025 chahatmandviwala-alt</p>
+	  
+	  <p>Permission is hereby granted, free of charge, to any person obtaining a copy
+         of this software and associated documentation files (the "Software"), to deal
+         in the Software without restriction, including without limitation the rights
+         to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+         copies of the Software, and to permit persons to whom the Software is
+         furnished to do so, subject to the following conditions:</p>
+		 
+	  <p>The above copyright notice and this permission notice shall be included in all
+         copies or substantial portions of the Software.</p>
+		 
+	  <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+         IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+         FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+         AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+         LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+         SOFTWARE.</p>
+	  
+    </div>
+  </div>
+
+<script>
+(function () {
+  // Prevent duplicate execution
+  if (document.querySelector(".callout[data-security='true']")) return;
+
+  const nodes = Array.from(document.querySelectorAll("h4"))
+    .filter(n => /^(Security Tip:|Warning:)/i.test(n.textContent.trim()));
+
+  if (!nodes.length) return;
+
+  const callout = document.createElement("div");
+  callout.className = "callout";
+  callout.dataset.security = "true";
+
+  nodes.forEach(n => {
+    const text = n.textContent.trim();
+
+    // Split ONLY on the first colon
+    const colonIndex = text.indexOf(":");
+    if (colonIndex === -1) return;
+
+    const label = text.slice(0, colonIndex + 1);
+    const message = text.slice(colonIndex + 1).trim();
+
+    const p = document.createElement("p");
+    p.innerHTML = `<strong>${label}</strong> ${message}`;
+
+    callout.appendChild(p);
+    n.remove();
+  });
+
+  const content = document.getElementById("content");
+  const h1 = content.querySelector("h1");
+  const intro = h1?.nextElementSibling;
+
+  if (intro) {
+    intro.insertAdjacentElement("afterend", callout);
+  } else {
+    content.prepend(callout);
+  }
+})();
+</script>
+</body>
+</html>
