@@ -38,8 +38,8 @@ function startServer() {
 
 function createWindow() {
   const iconPath = process.platform === "win32"
-    ? path.join(__dirname, "..", "public/tabs/docs", "icon.ico")
-    : path.join(__dirname, "..", "public/tabs/docs", "icon.png");
+    ? path.join(__dirname, "..", "public/tabs/docs", "app_icon.ico")
+    : path.join(__dirname, "..", "public/tabs/docs", "app_icon.png");
 
   mainWindow = new BrowserWindow({
     width: 1200,
