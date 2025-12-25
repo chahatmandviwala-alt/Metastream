@@ -1,25 +1,49 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set OUTPUT_FILE=Metastream.bat
-
-rem ensure npm exists
-where npm >nul 2>nul
-if errorlevel 1 (
-    echo Error: npm is not installed or not in PATH.
-    echo Install Node.js from https://nodejs.org and re-run this script.
-    exit /b 1
-)
+title Metastream Installer
 
 rem go to this script's folder
 cd /d "%~dp0"
 
-echo Running npm install...
-npm install
+echo.
+echo ============================
+echo   Metastream Installation
+echo ============================
+echo.
+
+rem Check for npm
+where npm >nul 2>nul
 if errorlevel 1 (
-    echo npm install failed.
+    echo ERROR: Node.js / npm is not installed.
+    echo.
+    echo Please install Node.js (it includes npm), then run this installer again.
+    echo.
+    echo Download: https://nodejs.org
+    echo.
+    pause
     exit /b 1
 )
+
+echo Installing dependencies (this may take a minute)...
+if exist package-lock.json (
+    npm ci
+) else (
+    npm install
+)
+
+if errorlevel 1 (
+    echo.
+    echo ERROR: Dependency installation failed.
+    echo.
+    echo Try closing this window and running install.bat again.
+    echo If it still fails, you may be offline or behind a restricted network.
+    echo.
+    pause
+    exit /b 1
+)
+
+set OUTPUT_FILE=Metastream.bat
 
 (
 echo @echo off
@@ -37,7 +61,12 @@ echo.
 echo endlocal
 ) > "%OUTPUT_FILE%"
 
-echo Installation complete.
-echo Run the app by double-clicking %OUTPUT_FILE%.
-
+echo.
+echo ============================
+echo   Installation complete.
+echo ============================
+echo.
+echo Start Metastream by double-clicking: %OUTPUT_FILE%
+echo.
+pause
 endlocal
