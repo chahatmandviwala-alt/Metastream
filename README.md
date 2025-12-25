@@ -132,7 +132,7 @@ sh LinxInstall.sh
 
 Intall on Windows:
 
-Install the app by double-clicking 'install.bat' or in cmd:
+Install the app by double-clicking 'WinInstall.bat' or in cmd:
 
 ```bash
 WinInstall.bat
