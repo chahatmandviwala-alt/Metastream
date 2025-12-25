@@ -121,27 +121,16 @@ git clone https://github.com/chahatmandviwala-alt/Metastream.git
 ```
 
 
-Install the dependencies:
-
-```bash
-npm install
-```
-
-Run locally in any browser:
-
-```bash
-npm run start
-```
-
-
-Alternatively install an executable shell script to autorun in the default browser (on Linux):
+Install on Linux:
 
 ```bash
 sh install.sh
 ```
 
 
-Alternatively install an executable .bat file to autorun in the default browser (on Windows):
+Intall on Windows:
+
+Install the app by double-clicking install.bat or in cmd:
 
 ```bash
 install.bat
