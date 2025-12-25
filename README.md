@@ -135,7 +135,7 @@ Intall on Windows:
 Install the app by double-clicking 'install.bat' or in cmd:
 
 ```bash
-install.bat
+win_install.bat
 ```
 
 
