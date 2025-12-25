@@ -92,13 +92,11 @@ Use the inbuilt virtual keyboard to add an extra layer of security for sensitive
 
 <p align="center"><img src="docs/IMG_12.png" alt="Alt text" width="60%" /></p>
 
-<br>
-
-## Hardware-wallet-like security
+<h2 style="margin-top: 12px;">Hardware wallet like security</h2>
 
 The security concept behind using air-gapped systems for signing transactions is to work with two physically separated devices, one of which has no connection to the outside world or any network. In this context, connecting your wallet with Metamask/Rabby allows you to watch your wallet and sign transactions through one-way communication using QR codes.
 
-## Supply Chain Attacks
+<h2 style="margin-top: 12px;">Supply chain attacks</h2>
 
 In recent years, multiple cryptocurrency wallets have been targeted by attackers attempting to steal users’ funds, with supply chain attacks being a common attack vector. In such attacks, an adversary compromises a third-party dependency to inject malicious code into a wallet. Metastream deliberately sources dependencies only from well-established and reputable hardware wallet developers such as Keystone, OneKey, and NGRAVE, whose products and security practices are widely trusted within the cryptocurrency ecosystem.
 
