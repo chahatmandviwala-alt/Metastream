@@ -1,19 +1,17 @@
 # Metastream
 
-A solution for creating Ethereum wallets and securely signing transactions offline using air-gapped devices.
-
-<br>
+<p style="margin-bottom: 12px;">A solution for creating Ethereum wallets and securely signing transactions offline using air-gapped devices.</p>
 
 ![Alt text](docs/IMG_001.png)
 
 #### Security Tip: Use this application only on a permanently air-gapped machine for maximum security.
 #### Warning: Never type your cold wallet or hardware wallet seed phrase on a device that connects to the internet.
 
-## Description
+<h2 style="margin-top: 12px;">Description</h2>
 
 - TBC
 
-## Features
+<h2 style="margin-top: 12px;">Features</h2>
 
 - Completely offline
 - Completely air-gapped, no wired/wiresless connections required
