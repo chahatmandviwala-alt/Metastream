@@ -48,6 +48,8 @@ jobs:
         with:
           files: |
             dist/Metastream-*.AppImage
-            dist/Metastream.*.exe
+            dist/*.exe
+            !dist/elevate.exe
+            !dist/Metastream.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
