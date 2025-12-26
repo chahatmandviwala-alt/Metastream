@@ -30,19 +30,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build distributables (OS-specific)
+      # IMPORTANT: call electron-builder directly so we don't inherit "-mwl" from package.json scripts
+      - name: Build (OS-specific)
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            npm run dist -- --win
+            npx electron-builder --win --publish never
           elif [[ "${{ runner.os }}" == "Linux" ]]; then
-            npm run dist -- --linux
+            npx electron-builder --linux --publish never
           else
             echo "Unsupported OS: ${{ runner.os }}"
             exit 1
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
