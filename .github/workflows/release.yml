@@ -30,17 +30,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # This assumes your existing script builds into dist/ (as you said).
-      # If your script name differs, change ONLY this line.
-      - name: Build distributables
-        run: npm run dist
+      # Build only what the runner OS can build, so Linux doesn't try to build macOS.
+      - name: Build distributables (OS-specific)
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            npm run dist -- --win
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            npm run dist -- --linux
+          else
+            echo "Unsupported OS: ${{ runner.os }}"
+            exit 1
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload dist/ artifacts to GitHub Release
+      # Upload only the expected release assets (avoid uploading all of dist/)
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/**/*
+            dist/**/*.exe
+            dist/**/*.AppImage
+            dist/latest*.yml
+            dist/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
