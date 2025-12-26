@@ -122,7 +122,7 @@ Run locally:
 npm run electron:dev
 ```
 
-Build portable Windows exectubale:
+Build portable Windows executable:
 
 ```bash
 npm run dist:win:portable
