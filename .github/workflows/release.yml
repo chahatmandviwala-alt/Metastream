@@ -1,0 +1,55 @@
+name: Build and publish (Windows EXE + Linux AppImage)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # IMPORTANT: call electron-builder directly so we don't inherit "-mwl" from package.json scripts
+      - name: Build (OS-specific)
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            npx electron-builder --win --publish never
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            npx electron-builder --linux --publish never
+          else
+            echo "Unsupported OS: ${{ runner.os }}"
+            exit 1
+          fi
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Metastream-*.AppImage
+            dist/*.exe
+            !dist/elevate.exe
+            !dist/Metastream.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
