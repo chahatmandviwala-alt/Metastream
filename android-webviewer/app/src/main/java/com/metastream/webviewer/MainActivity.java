@@ -21,6 +21,7 @@ import fi.iki.elonen.NanoHTTPD;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "Metastream";
+    private static final String BOOT_TAG = "METASTREAM_BOOT";
     private static final String WEBVIEW_CONSOLE_TAG = "WEBVIEW_CONSOLE";
     private static final int PORT = 3000;
     private static final int REQ_CAMERA = 1001;
@@ -32,15 +33,17 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // Disable state restore completely (matches your intent)
-        super.onCreate(null);
+        super.onCreate(null); // disable state restore completely
         setContentView(R.layout.activity_main);
+
+        // Unmissable marker to confirm app logs appear in logcat
+        Log.w(BOOT_TAG, "BOOT onCreate() reached, package=com.metastream.webviewer");
 
         // ---- start embedded offline HTTP server ----
         try {
             httpServer = new AssetHttpServer(this);
             httpServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-            Log.i(TAG, "Local server started: http://127.0.0.1:" + PORT + "/");
+            Log.w(TAG, "Local server started: http://127.0.0.1:" + PORT + "/");
         } catch (Exception e) {
             Log.e(TAG, "Failed to start local server", e);
         }
@@ -51,33 +54,26 @@ public class MainActivity extends AppCompatActivity {
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
-
-        // Keep these enabled (your current config)
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
-
-        // Helps camera/web APIs
         s.setMediaPlaybackRequiresUserGesture(false);
 
-        // Make console debugging possible (does not itself forward console logs)
         WebView.setWebContentsDebuggingEnabled(true);
 
-        // Keep basic navigation inside the WebView
         webView.setWebViewClient(new WebViewClient());
 
-        // ---- WebChromeClient: console log forwarding + permission granting ----
         webView.setWebChromeClient(new WebChromeClient() {
 
             @Override
             public boolean onConsoleMessage(ConsoleMessage msg) {
-                // Use INFO to avoid vendor log filters that hide DEBUG/VERBOSE
-                Log.i(
+                // WARN-level so it appears even with restrictive filters
+                Log.w(
                         WEBVIEW_CONSOLE_TAG,
                         msg.message()
                                 + " -- line " + msg.lineNumber()
                                 + " (" + msg.sourceId() + ")"
                 );
-                return true; // we handled it
+                return true;
             }
 
             @Override
