@@ -36,6 +36,12 @@ jobs:
           curl -L -o gradle-7.6.4-bin.zip https://services.gradle.org/distributions/gradle-7.6.4-bin.zip
           unzip -q gradle-7.6.4-bin.zip
 
+      - name: Copy web assets into APK
+        run: |
+          rm -rf android-webviewer/app/src/main/assets
+          mkdir -p android-webviewer/app/src/main/assets
+          cp -a public/. android-webviewer/app/src/main/assets/
+
       - name: Build debug APK
         run: |
           cd android-webviewer
