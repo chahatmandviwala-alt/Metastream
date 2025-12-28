@@ -21,6 +21,7 @@ import android.webkit.PermissionRequest;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import android.webkit.WebView;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -141,6 +142,7 @@ public class MainActivity extends AppCompatActivity {
         // Start clean and load index.html
         wv.clearHistory();
         wv.clearCache(true);
+        WebView.setWebContentsDebuggingEnabled(true);
         wv.loadUrl(START_URL);
     }
 }
