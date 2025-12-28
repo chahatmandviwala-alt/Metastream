@@ -24,8 +24,8 @@
 
     const href = a.getAttribute("href");
 
-    // Block root-relative navigation (/tabs/xyz.html)
-    if (href.startsWith("/tabs/")) {
+    // Block root-relative navigation (tabs/xyz.html)
+    if (href.startsWith("tabs/")) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -36,7 +36,7 @@
     document.querySelectorAll("iframe[src]").forEach(function (iframe) {
       const src = iframe.getAttribute("src");
 
-      if (src && src.startsWith("/tabs/")) {
+      if (src && src.startsWith("tabs/")) {
         iframe.setAttribute(
           "src",
           "file:///android_asset" + src
@@ -844,12 +844,12 @@
     </div>
   </div>
 
-  <iframe class="tab-content" id="newWallet" src="/tabs/new-wallet.html"></iframe>
-  <iframe class="tab-content" id="diceware" src="/tabs/diceware.html"></iframe>
-  <iframe class="tab-content" id="keystoreTool" src="/tabs/keystore-tool.html"></iframe>
-  <iframe class="tab-content" id="connect" src="/tabs/connect.html"></iframe>
-  <iframe class="tab-content" id="sign" src="/tabs/sign.html"></iframe>
-  <iframe class="tab-content" id="info" src="/tabs/info.html"></iframe>
+  <iframe class="tab-content" id="newWallet" src="tabs/new-wallet.html"></iframe>
+  <iframe class="tab-content" id="diceware" src="tabs/diceware.html"></iframe>
+  <iframe class="tab-content" id="keystoreTool" src="tabs/keystore-tool.html"></iframe>
+  <iframe class="tab-content" id="connect" src="tabs/connect.html"></iframe>
+  <iframe class="tab-content" id="sign" src="tabs/sign.html"></iframe>
+  <iframe class="tab-content" id="info" src="tabs/info.html"></iframe>
 
 </main>
 
