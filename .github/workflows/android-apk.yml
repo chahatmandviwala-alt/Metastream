@@ -53,6 +53,14 @@ jobs:
           mkdir -p android-webviewer/app/src/main/assets
           cp -a public/. android-webviewer/app/src/main/assets/
 
+      - name: Copy Android node-server into APK assets
+        run: |
+          rm -rf android-webviewer/app/src/main/assets/node-server
+          mkdir -p android-webviewer/app/src/main/assets/node-server
+          cp -a android-webviewer/node-server/server-android.js android-webviewer/app/src/main/assets/node-server/
+          cp -a android-webviewer/node-server/package.json android-webviewer/app/src/main/assets/node-server/
+          cp -a android-webviewer/node-server/node_modules android-webviewer/app/src/main/assets/node-server/
+
       - name: Build debug APK
         run: |
           cd android-webviewer
