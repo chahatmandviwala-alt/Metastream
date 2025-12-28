@@ -4,13 +4,47 @@
 <head>
 
 <script>
-  (function () {
-    if (location.protocol === "file:" && location.pathname.includes("android_asset")) {
-      const base = document.createElement("base");
-      base.href = "file:///android_asset/";
-      document.head.appendChild(base);
+(function () {
+  // Only apply fixes when running inside Android WebView assets
+  const isAndroidAsset =
+    location.protocol === "file:" &&
+    location.pathname.includes("/android_asset/");
+
+  if (!isAndroidAsset) return;
+
+  // 1. Force all relative URLs to resolve from android_asset root
+  const base = document.createElement("base");
+  base.href = "file:///android_asset/";
+  document.head.appendChild(base);
+
+  // 2. Prevent WebView from navigating away from index.html
+  document.addEventListener("click", function (e) {
+    const a = e.target.closest("a");
+    if (!a || !a.getAttribute("href")) return;
+
+    const href = a.getAttribute("href");
+
+    // Block root-relative navigation (/tabs/xyz.html)
+    if (href.startsWith("/tabs/")) {
+      e.preventDefault();
+      e.stopPropagation();
     }
-  })();
+  }, true);
+
+  // 3. Rewrite iframe src attributes AFTER DOM is ready
+  window.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("iframe[src]").forEach(function (iframe) {
+      const src = iframe.getAttribute("src");
+
+      if (src && src.startsWith("/tabs/")) {
+        iframe.setAttribute(
+          "src",
+          "file:///android_asset" + src
+        );
+      }
+    });
+  });
+})();
 </script>
 
 <meta charset="utf-8"/>
