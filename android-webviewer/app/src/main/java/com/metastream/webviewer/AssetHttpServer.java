@@ -310,7 +310,7 @@ public class AssetHttpServer extends NanoHTTPD {
 
             // Decode the ETH-SIGN-REQUEST CBOR
             com.upokecenter.cbor.CBORObject obj = com.upokecenter.cbor.CBORObject.DecodeFromBytes(lastUrCbor);
-            if (obj == null || !obj.isMap()) {
+            if (obj == null || obj.getType() != com.upokecenter.cbor.CBORType.Map) {
                 return jsonOk("{\"error\":\"Invalid CBOR: expected map.\"}");
             }
 
@@ -458,7 +458,7 @@ public class AssetHttpServer extends NanoHTTPD {
         try {
             com.upokecenter.cbor.CBORObject v = map.get(com.upokecenter.cbor.CBORObject.FromObject(key));
             if (v == null) return null;
-            if (v.isByteString()) return v.GetByteString();
+            if (v.getType() == com.upokecenter.cbor.CBORType.ByteString) return v.GetByteString();
             return null;
         } catch (Exception ignored) {
             return null;
@@ -495,7 +495,7 @@ public class AssetHttpServer extends NanoHTTPD {
         try {
             for (com.upokecenter.cbor.CBORObject k : map.getKeys()) {
                 com.upokecenter.cbor.CBORObject v = map.get(k);
-                if (v != null && v.isByteString()) {
+                if (v != null && v.getType() == com.upokecenter.cbor.CBORType.ByteString) {{
                     byte[] b = v.GetByteString();
                     if (b != null && b.length > 20) {
                         int first = b[0] & 0xff;
