@@ -14,6 +14,14 @@ import android.webkit.WebChromeClient;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.webkit.PermissionRequest;
+
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+
 public class MainActivity extends AppCompatActivity {
 
     private static final String ASSET_ROOT = "file:///android_asset/";
@@ -107,7 +115,28 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        wv.setWebChromeClient(new WebChromeClient());
+        wv.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                runOnUiThread(() -> {
+                    // Ensure Android runtime permission is granted
+                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                            != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(
+                                MainActivity.this,
+                                new String[]{Manifest.permission.CAMERA},
+                                1001
+                        );
+                        // Do not grant WebView yet; user must accept first
+                        request.deny();
+                        return;
+                    }
+
+                    // Grant whatever the page requested (e.g., video capture)
+                    request.grant(request.getResources());
+                });
+            }
+        });
 
         // Start clean and load index.html
         wv.clearHistory();
