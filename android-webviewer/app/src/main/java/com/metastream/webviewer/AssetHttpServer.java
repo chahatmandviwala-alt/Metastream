@@ -27,15 +27,25 @@ public class AssetHttpServer extends NanoHTTPD {
         Log.d(TAG, "Request: " + uri);
 
         // --- API PLACEHOLDER (we will wire logic next) ---
+        // --- API (always JSON, always parses body to avoid NanoHTTPD "Bad request") ---
         if (uri.startsWith("/api/")) {
+            try {
+                // IMPORTANT: parse request body, otherwise NanoHTTPD may emit "Bad request"
+                Map<String, String> files = new HashMap<>();
+                session.parseBody(files); // populates files.get("postData") for JSON POSTs
+            } catch (Exception ignored) {
+                // Even if parsing fails, we still return JSON below.
+            }
+
             String body = "{\"ok\":false,\"error\":\"API not implemented on Android yet\",\"path\":\""
                     + uri.replace("\"", "\\\"")
                     + "\"}";
-            return newFixedLengthResponse(
-                    Response.Status.NOT_IMPLEMENTED,
-                    "application/json",
-                    body
-            );
+
+            Response r = newFixedLengthResponse(Response.Status.NOT_IMPLEMENTED, "application/json", body);
+            r.addHeader("Access-Control-Allow-Origin", "*");
+            r.addHeader("Access-Control-Allow-Headers", "content-type");
+            r.addHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+            return r;
         }
 
         // --- Static files from assets ---
