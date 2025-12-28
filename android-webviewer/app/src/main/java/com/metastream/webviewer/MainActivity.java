@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
+import android.webkit.ConsoleMessage;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -20,6 +21,7 @@ import fi.iki.elonen.NanoHTTPD;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "Metastream";
+    private static final String WEBVIEW_CONSOLE_TAG = "WEBVIEW_CONSOLE";
     private static final int PORT = 3000;
     private static final int REQ_CAMERA = 1001;
 
@@ -30,14 +32,15 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(null); // disable state restore completely
+        // Disable state restore completely (matches your intent)
+        super.onCreate(null);
         setContentView(R.layout.activity_main);
 
         // ---- start embedded offline HTTP server ----
         try {
             httpServer = new AssetHttpServer(this);
             httpServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-            Log.i(TAG, "Local server started on port " + PORT);
+            Log.i(TAG, "Local server started: http://127.0.0.1:" + PORT + "/");
         } catch (Exception e) {
             Log.e(TAG, "Failed to start local server", e);
         }
@@ -48,23 +51,33 @@ public class MainActivity extends AppCompatActivity {
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
+
+        // Keep these enabled (your current config)
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
+
+        // Helps camera/web APIs
         s.setMediaPlaybackRequiresUserGesture(false);
 
+        // Make console debugging possible (does not itself forward console logs)
         WebView.setWebContentsDebuggingEnabled(true);
 
+        // Keep basic navigation inside the WebView
         webView.setWebViewClient(new WebViewClient());
 
+        // ---- WebChromeClient: console log forwarding + permission granting ----
         webView.setWebChromeClient(new WebChromeClient() {
 
             @Override
-            public boolean onConsoleMessage(android.webkit.ConsoleMessage msg) {
-                Log.e(
-                        "WEBVIEW_CONSOLE",
-                        msg.message() + " (" + msg.sourceId() + ":" + msg.lineNumber() + ")"
+            public boolean onConsoleMessage(ConsoleMessage msg) {
+                // Use INFO to avoid vendor log filters that hide DEBUG/VERBOSE
+                Log.i(
+                        WEBVIEW_CONSOLE_TAG,
+                        msg.message()
+                                + " -- line " + msg.lineNumber()
+                                + " (" + msg.sourceId() + ")"
                 );
-                return true;
+                return true; // we handled it
             }
 
             @Override
@@ -75,6 +88,7 @@ public class MainActivity extends AppCompatActivity {
                     for (String r : request.getResources()) {
                         if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)) {
                             needsCamera = true;
+                            break;
                         }
                     }
 
@@ -113,9 +127,7 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQ_CAMERA && pendingPermissionRequest != null) {
             if (grantResults.length > 0 &&
                     grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                pendingPermissionRequest.grant(
-                        pendingPermissionRequest.getResources()
-                );
+                pendingPermissionRequest.grant(pendingPermissionRequest.getResources());
             } else {
                 pendingPermissionRequest.deny();
             }
