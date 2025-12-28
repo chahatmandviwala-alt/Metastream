@@ -295,23 +295,24 @@ public class AssetHttpServer extends NanoHTTPD {
     }
 
     private static String readBody(IHTTPSession session) throws Exception {
-        session.parseBody(new java.util.HashMap<>());
-        InputStream in = session.getInputStream();
-        int len = (int) session.getBodySize();
-        if (len <= 0) {
-            // NanoHTTPD sometimes stores it in parms map; but parseBody above usually fills tmp files.
-            // We fall back to reading stream until EOF.
-            byte[] buf = readAll(in);
-            return new String(buf, StandardCharsets.UTF_8);
+        java.util.Map<String, String> files = new java.util.HashMap<>();
+        session.parseBody(files);
+
+        // NanoHTTPD puts the raw POST body into a temp file under the "postData" key.
+         String tmpPath = files.get("postData");
+        if (tmpPath == null) {
+            // If no body, return empty
+            return "";
         }
-        byte[] buf = new byte[len];
-        int read = 0;
-        while (read < len) {
-            int r = in.read(buf, read, len - read);
-            if (r <= 0) break;
-            read += r;
+
+        java.io.File f = new java.io.File(tmpPath);
+        java.io.FileInputStream fis = new java.io.FileInputStream(f);
+        try {
+            byte[] buf = readAll(fis);
+            return new String(buf, java.nio.charset.StandardCharsets.UTF_8);
+        } finally {
+            try { fis.close(); } catch (Exception ignored) {}
         }
-        return new String(buf, 0, read, StandardCharsets.UTF_8);
     }
 
     private static byte[] readAll(InputStream in) throws Exception {
