@@ -17,6 +17,9 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Disable state restoration so we always start fresh
+        savedInstanceState = null;
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -29,31 +32,33 @@ public class MainActivity extends AppCompatActivity {
         s.setAllowContentAccess(true);
 
         wv.setWebViewClient(new WebViewClient() {
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri u = request.getUrl();
                 String url = u.toString();
 
-                // If your HTML uses root-relative links like "/tabs/xyz.html",
-                // they become "file:///tabs/xyz.html" in file:// context.
-                // Rewrite them to Android assets.
+                // Rewrite root-relative links like "/tabs/xyz.html"
+                // which become "file:///tabs/xyz.html" in file:// context
                 if (url.startsWith("file:///tabs/")) {
-                    String rewritten = ASSET_ROOT + "tabs/" + url.substring("file:///tabs/".length());
+                    String rewritten =
+                        ASSET_ROOT + "tabs/" + url.substring("file:///tabs/".length());
                     view.loadUrl(rewritten);
                     return true;
                 }
 
-                // Also handle "file:/tabs/..." variants just in case
                 if (url.startsWith("file:/tabs/")) {
-                    String rewritten = ASSET_ROOT + "tabs/" + url.substring("file:/tabs/".length());
+                    String rewritten =
+                        ASSET_ROOT + "tabs/" + url.substring("file:/tabs/".length());
                     view.loadUrl(rewritten);
                     return true;
                 }
 
-                return false; // let WebView handle everything else
+                return false;
             }
         });
 
+        // Always start at index.html
         wv.loadUrl(ASSET_ROOT + "index.html");
     }
 }
