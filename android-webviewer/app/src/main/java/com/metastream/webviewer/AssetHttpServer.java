@@ -276,9 +276,8 @@ public class AssetHttpServer extends NanoHTTPD {
         String bw = p.substring(slash + 1);
 
         try {
-            // NOTE: Your scanned frames are "standard" bytewords-like (4-letter words).
-            // This decoder currently expects the "minimal" 2-letter form you used in /api/gen.
-            // If decode fails, we still store nothing and return status=error.
+            // NOTE: This currently expects the "minimal" 2-letter encoding.
+            // Your scanned QR looks like standard bytewords; decoding may fail until we implement standard bytewords.
             byte[] decoded = bytewordsMinimalDecodeWithCrc(bw);
             lastUrType = type;
             lastUrCbor = decoded;
@@ -308,17 +307,11 @@ public class AssetHttpServer extends NanoHTTPD {
                 return jsonOk("{\"error\":\"Last UR type was " + escapeJson(lastUrType) + ", expected eth-sign-request.\"}");
             }
 
-            // Decode the ETH-SIGN-REQUEST CBOR
             com.upokecenter.cbor.CBORObject obj = com.upokecenter.cbor.CBORObject.DecodeFromBytes(lastUrCbor);
             if (obj == null || obj.getType() != com.upokecenter.cbor.CBORType.Map) {
                 return jsonOk("{\"error\":\"Invalid CBOR: expected map.\"}");
             }
 
-            // Typical eth-sign-request map keys:
-            // 1: requestId (bstr)
-            // 2: signData (bstr)
-            // 3: dataType (int)   1=legacy tx, 4=EIP-1559 typed tx
-            // 4: chainId (int)    optional
             byte[] requestId = getBytesByKey(obj, 1);
             byte[] signData = getBytesByKey(obj, 2);
             Integer dataType = getIntByKey(obj, 3);
@@ -344,7 +337,6 @@ public class AssetHttpServer extends NanoHTTPD {
                 byte[] rlpPayload = Arrays.copyOfRange(signData, 1, signData.length);
                 List<byte[]> fields = rlpDecodeList(rlpPayload);
 
-                // [chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data, accessList]
                 if (fields.size() < 8) {
                     return jsonOk("{\"error\":\"EIP-1559 RLP decode returned too few fields.\"}");
                 }
@@ -397,7 +389,6 @@ public class AssetHttpServer extends NanoHTTPD {
                 // Legacy transaction: rlp(list)
                 List<byte[]> fields = rlpDecodeList(signData);
 
-                // [nonce, gasPrice, gasLimit, to, value, data]
                 if (fields.size() < 6) {
                     return jsonOk("{\"error\":\"Legacy RLP decode returned too few fields.\"}");
                 }
@@ -495,7 +486,8 @@ public class AssetHttpServer extends NanoHTTPD {
         try {
             for (com.upokecenter.cbor.CBORObject k : map.getKeys()) {
                 com.upokecenter.cbor.CBORObject v = map.get(k);
-                if (v != null && v.getType() == com.upokecenter.cbor.CBORType.ByteString) {{
+                // FIX: single '{' only (your uploaded file had '{{' here)
+                if (v != null && v.getType() == com.upokecenter.cbor.CBORType.ByteString) {
                     byte[] b = v.GetByteString();
                     if (b != null && b.length > 20) {
                         int first = b[0] & 0xff;
@@ -590,7 +582,6 @@ public class AssetHttpServer extends NanoHTTPD {
             while (posRef[0] < end) {
                 RlpItem child = rlpDecodeItem(data, posRef);
                 if (child.isList) {
-                    // Not needed for tx summary; keep placeholder.
                     items.add(new byte[0]);
                 } else {
                     items.add(child.bytes == null ? new byte[0] : child.bytes);
