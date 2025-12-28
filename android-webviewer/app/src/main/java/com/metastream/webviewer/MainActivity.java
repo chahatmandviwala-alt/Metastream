@@ -1,38 +1,32 @@
 package com.metastream.webviewer;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
-import android.net.Uri;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.SystemClock;
-import android.webkit.WebResourceRequest;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.webkit.WebChromeClient;
 
 import androidx.appcompat.app.AppCompatActivity;
-
-import android.Manifest;
-import android.content.pm.PackageManager;
-import android.webkit.PermissionRequest;
-
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import android.webkit.WebView;
+import fi.iki.elonen.NanoHTTPD;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String ASSET_ROOT = "file:///android_asset/";
-    private static final String START_URL  = ASSET_ROOT + "index.html";
+    private static final int PORT = 3000;
+    private static final int REQ_CAMERA = 1001;
 
     private WebView wv;
+    private AssetHttpServer httpServer;
 
-    // For the first ~2 seconds, force START_URL and block auto-jumps into tabs
-    private long launchUptimeMs;
-    private boolean startupLock = true;
+    // If a page requests camera before runtime permission is granted,
+    // we hold the WebView permission request and resolve it after user action.
+    private PermissionRequest pendingWebViewPermissionRequest = null;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -43,7 +37,13 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        launchUptimeMs = SystemClock.uptimeMillis();
+        // Start embedded localhost server for offline mode
+        try {
+            httpServer = new AssetHttpServer(PORT, getAssets());
+            httpServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         wv = findViewById(R.id.webview);
         wv.setSaveEnabled(false);
@@ -51,98 +51,86 @@ public class MainActivity extends AppCompatActivity {
         WebSettings s = wv.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
+
+        // Required for many WebView camera/file flows
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
 
-        wv.setWebViewClient(new WebViewClient() {
+        // Keep navigation inside WebView
+        wv.setWebViewClient(new WebViewClient());
 
-            private boolean isWithinStartupWindow() {
-                return startupLock && (SystemClock.uptimeMillis() - launchUptimeMs) < 2000;
-            }
-
-            private boolean isTabUrl(String url) {
-                if (url == null) return false;
-                // These are the two forms you have seen
-                return url.startsWith("file:///tabs/") ||
-                       url.startsWith("file:/tabs/") ||
-                       url.startsWith(ASSET_ROOT + "tabs/");
-            }
-
-            private String rewriteTabUrlToAssets(String url) {
-                if (url.startsWith("file:///tabs/")) {
-                    return ASSET_ROOT + "tabs/" + url.substring("file:///tabs/".length());
-                }
-                if (url.startsWith("file:/tabs/")) {
-                    return ASSET_ROOT + "tabs/" + url.substring("file:/tabs/".length());
-                }
-                return url;
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                Uri u = request.getUrl();
-                String url = (u == null) ? null : u.toString();
-
-                // During startup: do NOT allow automatic navigation into tabs.
-                if (isWithinStartupWindow() && isTabUrl(url)) {
-                    // Force back to index.html
-                    view.loadUrl(START_URL);
-                    return true;
-                }
-
-                // Normal operation: rewrite /tabs links to assets so they load.
-                if (isTabUrl(url) && (url.startsWith("file:/tabs/") || url.startsWith("file:///tabs/"))) {
-                    view.loadUrl(rewriteTabUrlToAssets(url));
-                    return true;
-                }
-
-                return false;
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-
-                // If something managed to load a tab during startup, immediately correct it.
-                if (isWithinStartupWindow() && isTabUrl(url)) {
-                    view.loadUrl(START_URL);
-                    return;
-                }
-
-                // Once index.html has loaded, release the startup lock shortly after.
-                if (START_URL.equals(url)) {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> startupLock = false, 300);
-                }
-            }
-        });
-
+        // Enable camera + file chooser hooks
         wv.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> {
-                    // Ensure Android runtime permission is granted
-                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
-                            != PackageManager.PERMISSION_GRANTED) {
-                        ActivityCompat.requestPermissions(
-                                MainActivity.this,
-                                new String[]{Manifest.permission.CAMERA},
-                                1001
-                        );
-                        // Do not grant WebView yet; user must accept first
-                        request.deny();
-                        return;
+                    // If the page requests video/audio capture, Android runtime permission may be needed
+                    boolean needsCamera = false;
+                    for (String r : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)) {
+                            needsCamera = true;
+                        }
                     }
 
-                    // Grant whatever the page requested (e.g., video capture)
+                    if (needsCamera) {
+                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                                != PackageManager.PERMISSION_GRANTED) {
+                            pendingWebViewPermissionRequest = request;
+                            ActivityCompat.requestPermissions(
+                                    MainActivity.this,
+                                    new String[]{Manifest.permission.CAMERA},
+                                    REQ_CAMERA
+                            );
+                            return; // wait for user response
+                        }
+                    }
+
+                    // Grant requested resources
                     request.grant(request.getResources());
                 });
             }
         });
 
-        // Start clean and load index.html
-        wv.clearHistory();
-        wv.clearCache(true);
-        WebView.setWebContentsDebuggingEnabled(true);
-        wv.loadUrl(START_URL);
+        // Load the app from localhost so /api/... works offline
+        wv.loadUrl("http://127.0.0.1:" + PORT + "/");
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQ_CAMERA) {
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+
+            if (pendingWebViewPermissionRequest != null) {
+                if (granted) {
+                    pendingWebViewPermissionRequest.grant(pendingWebViewPermissionRequest.getResources());
+                } else {
+                    pendingWebViewPermissionRequest.deny();
+                }
+                pendingWebViewPermissionRequest = null;
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // Stop server
+        if (httpServer != null) {
+            try {
+                httpServer.stop();
+            } catch (Exception ignored) {}
+            httpServer = null;
+        }
+
+        // Clean up WebView
+        if (wv != null) {
+            try {
+                wv.destroy();
+            } catch (Exception ignored) {}
+            wv = null;
+        }
     }
 }
