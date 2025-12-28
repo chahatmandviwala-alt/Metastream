@@ -107,25 +107,27 @@ public class AssetHttpServer extends NanoHTTPD {
             // --------------------------
             // API routes
             // --------------------------
-            if (uri.startsWith("/api/")) {
-                if ("/api/gen".equals(uri) && method == Method.POST) {
-                    return handleApiGen(postData);
-                }
-                if ("/api/ur/reset".equals(uri) && method == Method.POST) {
-                    lastUrType = null;
-                    lastUrCbor = null;
-                    return jsonOk("{\"ok\":true}");
-                }
-                if ("/api/ur/part".equals(uri) && method == Method.POST) {
-                    return handleApiUrPart(postData);
-                }
-                if ("/api/ur/decoded".equals(uri) && method == Method.GET) {
-                    return handleApiUrDecoded();
-                }
+if (uri.startsWith("/api/")) {
+    if ("/api/gen".equals(uri) && method == Method.POST) {
+        return handleApiGen(postData);
+    }
+    if ("/api/ur/reset".equals(uri) && method == Method.POST) {
+        lastUrType = null;
+        lastUrCbor = null;
+        return jsonOk("{\"ok\":true}");
+    }
+    if ("/api/ur/part".equals(uri) && method == Method.POST) {
+        return handleApiUrPart(postData);
+    }
+    if ("/api/ur/decoded".equals(uri) && method == Method.GET) {
+        return handleApiUrDecoded();
+    }
+    if ("/api/sign".equals(uri) && method == Method.POST) {
+        return handleApiSign(postData);
+    }
 
-                // Unknown /api should NEVER return plain text.
-                return json(404, "{\"ok\":false,\"error\":\"not_found\",\"message\":\"Unknown API endpoint\"}");
-            }
+    return json(404, "{\"ok\":false,\"error\":\"not_found\",\"message\":\"Unknown API endpoint\"}");
+}
 
             // --------------------------
             // Static assets over HTTP
@@ -440,6 +442,117 @@ public class AssetHttpServer extends NanoHTTPD {
             return jsonOk("{\"error\":\"" + escapeJson(e.getMessage() == null ? "decode error" : e.getMessage()) + "\"}");
         }
     }
+
+    // --------------------------
+// /api/sign  (Sign transaction)
+// --------------------------
+private Response handleApiSign(String body) throws Exception {
+    String privateKeyHex = jsonGetString(body, "privateKeyHex", "").trim();
+    if (privateKeyHex.isEmpty()) {
+        return jsonError(Response.Status.BAD_REQUEST, "Missing privateKeyHex");
+    }
+    if (privateKeyHex.startsWith("0x") || privateKeyHex.startsWith("0X")) {
+        privateKeyHex = privateKeyHex.substring(2);
+    }
+    if (privateKeyHex.length() != 64) {
+        return jsonError(Response.Status.BAD_REQUEST, "privateKeyHex must be 32 bytes (64 hex chars)");
+    }
+
+    if (lastUrType == null || lastUrCbor == null || !"eth-sign-request".equals(lastUrType)) {
+        return jsonError(Response.Status.BAD_REQUEST, "No eth-sign-request present; scan request QR first");
+    }
+
+    com.upokecenter.cbor.CBORObject req = com.upokecenter.cbor.CBORObject.DecodeFromBytes(lastUrCbor);
+    if (req == null || req.getType() != com.upokecenter.cbor.CBORType.Map) {
+        return jsonError(Response.Status.BAD_REQUEST, "Invalid sign request CBOR");
+    }
+
+    byte[] requestId = getBytesByKey(req, 1);
+    byte[] signData = getBytesByKey(req, 2);
+    Integer dataType = getIntByKey(req, 3);
+    Long chainId = getLongByKey(req, 4);
+
+    if (signData == null || signData.length == 0) signData = findLikelySignData(req);
+    if (dataType == null) dataType = findLikelyDataType(req);
+
+    if (signData == null || signData.length == 0) {
+        return jsonError(Response.Status.BAD_REQUEST, "Could not locate signData in request");
+    }
+    if (dataType == null) {
+        return jsonError(Response.Status.BAD_REQUEST, "Could not locate dataType in request");
+    }
+
+    // Hash the payload bytes (same as server.js: keccak256 of signData bytes)
+    byte[] hash = org.web3j.crypto.Hash.sha3(signData);
+
+    // Sign with secp256k1
+    org.web3j.crypto.ECKeyPair keyPair = org.web3j.crypto.ECKeyPair.create(hexToBytes(privateKeyHex));
+    org.web3j.crypto.Sign.SignatureData sig = org.web3j.crypto.Sign.signMessage(hash, keyPair, false);
+
+    byte[] r = pad32(sig.getR());
+    byte[] s = pad32(sig.getS());
+    byte v = sig.getV();  // usually 27 or 28
+
+    // Convert v into 0/1 for the 65-byte compact signature format
+    byte vNorm = v;
+    if (vNorm == 27 || vNorm == 28) vNorm = (byte) (vNorm - 27);
+
+    byte[] sig65 = new byte[65];
+    System.arraycopy(r, 0, sig65, 0, 32);
+    System.arraycopy(s, 0, sig65, 32, 32);
+    sig65[64] = vNorm;
+
+    // CBOR response
+    com.upokecenter.cbor.CBORObject resp = com.upokecenter.cbor.CBORObject.NewMap();
+    if (requestId != null) resp.Add(1, requestId);
+    resp.Add(2, sig65);
+    resp.Add(3, (int) (v & 0xff));
+    resp.Add(4, r);
+    resp.Add(5, s);
+    if (chainId != null) resp.Add(6, chainId);
+
+    byte[] respCbor = resp.EncodeToBytes();
+
+    // Encode as UR
+    String urBody = bytewordsMinimalWithCrc(respCbor);
+    String urText = ("ur:eth-signature/" + urBody).toUpperCase(Locale.ROOT);
+
+    String qrDataUrl = makeQrDataUrl(urText, 8);
+
+    String json =
+            "{"
+                    + "\"ok\":true,"
+                    + "\"ur\":\"" + escapeJson(urText) + "\","
+                    + "\"qrDataUrl\":\"" + escapeJson(qrDataUrl) + "\""
+                    + "}";
+
+    return jsonOk(json);
+}
+
+// --- helpers for /api/sign ---
+private static byte[] hexToBytes(String hex) {
+    int len = hex.length();
+    byte[] out = new byte[len / 2];
+    for (int i = 0; i < out.length; i++) {
+        int hi = Character.digit(hex.charAt(i * 2), 16);
+        int lo = Character.digit(hex.charAt(i * 2 + 1), 16);
+        out[i] = (byte) ((hi << 4) | lo);
+    }
+    return out;
+}
+
+private static byte[] pad32(byte[] b) {
+    if (b == null) return new byte[32];
+    if (b.length == 32) return b;
+    byte[] out = new byte[32];
+    if (b.length > 32) {
+        System.arraycopy(b, b.length - 32, out, 0, 32);
+    } else {
+        System.arraycopy(b, 0, out, 32 - b.length, b.length);
+    }
+    return out;
+}
+
 
     // --------------------------
     // ETH SignRequest decoding helpers
