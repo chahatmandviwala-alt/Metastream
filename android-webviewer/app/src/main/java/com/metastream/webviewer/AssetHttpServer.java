@@ -678,55 +678,52 @@ public class AssetHttpServer extends NanoHTTPD {
         return a;
     }
 
-    private static String buildHumanJson(long chainId, String toAddr, String valueEth, Action action) {
-        String token = "ETH";
-        String amount = valueEth;
-        String to = toAddr;
+private static String buildHumanJson(long chainId, String toAddr, String valueEth, Action action) {
+    String token = "ETH";
+    String amount = valueEth;
+    String to = toAddr;
 
-        String summary;
+    String summary;
 
-        if ("erc20.transfer".equals(action.kind)) {
-            token = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
-            amount = (action.humanAmount != null ? action.humanAmount : "0");
-            to = action.recipient;
-            summary = "Send " + amount + " " + token + " to " + (to == null ? "(unknown)" : to);
-        } else if ("eth.transfer".equals(action.kind)) {
-            to = action.recipient;
-            summary = "Send " + valueEth + " ETH to " + (to == null ? "(unknown)" : to);
-        } else if ("contract.call".equals(action.kind)) {
-            summary = "Contract call to " + (toAddr == null ? "(unknown)" : toAddr)
-                    + (action.selector != null ? (" (selector " + action.selector + ")") : "");
-        } else {
-            summary = "No ETH value and no calldata";
-        }
-
-        String toJson = (to == null ? "null" : ("\"" + escapeJson(to) + "\""));
-
-        String detailsJson =
-                "{"
-                        + "\"kind\":\"" + escapeJson(action.kind) + "\""
-                        + ",\"to\":" + toJson
-                        + ",\"recipient\":" + toJson
-                        + (action.selector != null ? (",\"selector\":\"" + escapeJson(action.selector) + "\"") : "")
-                        + "}";
-
-        String feesJson = "{}";
-
-        String toJson = (to == null ? "null" : ("\"" + escapeJson(to) + "\""));
-
-
-        return "{"
-                + "\"fromAddress\":null,"
-                + "\"toAddress\":" + toJson + ","
-                + "\"recipient\":" + toJson + ","
-                + "\"to\":" + toJson + ","
-                + "\"token\":\"" + escapeJson(token) + "\","
-                + "\"amount\":\"" + escapeJson(amount) + "\","
-                + "\"details\":" + detailsJson + ","
-                + "\"fees\":" + feesJson + ","
-                + "\"summary\":\"" + escapeJson(summary) + "\""
-                + "}";
+    if ("erc20.transfer".equals(action.kind)) {
+        token = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
+        amount = (action.humanAmount != null ? action.humanAmount : "0");
+        to = action.recipient;
+        summary = "Send " + amount + " " + token + " to " + (to == null ? "(unknown)" : to);
+    } else if ("eth.transfer".equals(action.kind)) {
+        to = action.recipient;
+        summary = "Send " + valueEth + " ETH to " + (to == null ? "(unknown)" : to);
+    } else if ("contract.call".equals(action.kind)) {
+        summary = "Contract call to " + (toAddr == null ? "(unknown)" : toAddr)
+                + (action.selector != null ? (" (selector " + action.selector + ")") : "");
+    } else {
+        summary = "Review carefully on your device.";
     }
+
+    String toJson = (to == null ? "null" : ("\"" + escapeJson(to) + "\""));
+
+    String detailsJson =
+            "{"
+                    + "\"kind\":\"" + escapeJson(action.kind) + "\""
+                    + ",\"to\":" + toJson
+                    + ",\"recipient\":" + toJson
+                    + (action.selector != null ? (",\"selector\":\"" + escapeJson(action.selector) + "\"") : "")
+                    + "}";
+
+    String feesJson = "{}";
+
+    return "{"
+            + "\"fromAddress\":null,"
+            + "\"toAddress\":" + toJson + ","
+            + "\"recipient\":" + toJson + ","
+            + "\"to\":" + toJson + ","
+            + "\"token\":\"" + escapeJson(token) + "\","
+            + "\"amount\":\"" + escapeJson(amount) + "\","
+            + "\"details\":" + detailsJson + ","
+            + "\"fees\":" + feesJson + ","
+            + "\"summary\":\"" + escapeJson(summary) + "\""
+            + "}";
+}
 
     // --------------------------
     // Static asset serving
