@@ -156,22 +156,32 @@ public class AssetHttpServer extends NanoHTTPD {
     }
 
     private static String readPostDataFromFiles(Map<String, String> files) throws Exception {
-        // NanoHTTPD puts the POST body in a temp file under key "postData" (common),
-        // or sometimes under "content" in certain forks.
-        String tmpPath = files.get("postData");
-        if (tmpPath == null) tmpPath = files.get("content");
-        if (tmpPath == null) return "";
+        // NanoHTTPD variants:
+        // 1) files.get("postData") is the raw body STRING
+        // 2) files.get("postData") is a TEMP FILE PATH holding the body
+        // Some forks use "content" instead.
+        String v = files.get("postData");
+        if (v == null) v = files.get("content");
+        if (v == null) return "";
 
-        File f = new File(tmpPath);
-        if (!f.exists()) return "";
-
-        FileInputStream fis = new FileInputStream(f);
+        // If it looks like a path and exists, read it.
+        // Otherwise treat it as the body directly.
         try {
-            byte[] buf = readAll(fis);
-            return new String(buf, StandardCharsets.UTF_8);
-        } finally {
-            try { fis.close(); } catch (Exception ignored) {}
+            File f = new File(v);
+            if (f.exists() && f.isFile()) {
+                FileInputStream fis = new FileInputStream(f);
+                try {
+                    byte[] buf = readAll(fis);
+                    return new String(buf, StandardCharsets.UTF_8);
+                } finally {
+                    try { fis.close(); } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception ignored) {
+            // fall through and treat v as inline body
         }
+
+        return v;
     }
 
     // --------------------------
