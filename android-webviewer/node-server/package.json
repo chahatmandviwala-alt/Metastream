@@ -9,13 +9,13 @@
     "ethers": "^6.15.0",
     "qrcode": "^1.5.4",
 
+    "cbor": "^10.0.11",
+    "@ngraveio/bc-ur": "^1.1.13",
+
     "@scure/bip39": "^1.4.0",
     "@scure/bip32": "^1.4.0",
     "@noble/secp256k1": "^2.1.0",
     "@noble/hashes": "^1.8.0",
-
-    "cbor-x": "^1.6.0",
-    "@ngraveio/bc-ur": "^1.1.13",
 
     "@onekeyfe/hd-air-gap-sdk": "^1.0.0-alpha.9",
     "@keystonehq/bc-ur-registry-eth": "^0.22.1"
