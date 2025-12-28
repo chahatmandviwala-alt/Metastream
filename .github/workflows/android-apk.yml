@@ -23,7 +23,7 @@ jobs:
       - name: Install Android node-server deps
         run: |
           cd android-webviewer/node-server
-          npm ci
+          npm install --no-audit --no-fund
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
