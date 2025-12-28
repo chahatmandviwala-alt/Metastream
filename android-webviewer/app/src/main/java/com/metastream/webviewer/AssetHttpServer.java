@@ -708,9 +708,14 @@ public class AssetHttpServer extends NanoHTTPD {
 
         String feesJson = "{}";
 
+        String toJson = (to == null ? "null" : ("\"" + escapeJson(to) + "\""));
+
+
         return "{"
                 + "\"fromAddress\":null,"
-                + "\"toAddress\":" + (to == null ? "null" : ("\"" + escapeJson(to) + "\"")) + ","
+                + "\"toAddress\":" + toJson + ","
+                + "\"recipient\":" + toJson + ","
+                + "\"to\":" + toJson + ","
                 + "\"token\":\"" + escapeJson(token) + "\","
                 + "\"amount\":\"" + escapeJson(amount) + "\","
                 + "\"details\":" + detailsJson + ","
