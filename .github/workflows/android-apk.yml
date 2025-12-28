@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -23,17 +23,23 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android SDK licenses
+      - name: Accept licenses
         run: yes | sdkmanager --licenses
 
-      - name: Install required SDK packages
+      - name: Install SDK packages (API 33)
         run: |
-          sdkmanager "platforms;android-29" "build-tools;29.0.3"
+          sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools"
+
+      - name: Download Gradle 7.6.4
+        run: |
+          cd android-webviewer
+          curl -L -o gradle-7.6.4-bin.zip https://services.gradle.org/distributions/gradle-7.6.4-bin.zip
+          unzip -q gradle-7.6.4-bin.zip
 
       - name: Build debug APK
-        working-directory: android-webviewer
         run: |
-          ./gradle-7.6.4/bin/gradle :app:assembleDebug
+          cd android-webviewer
+          ./gradle-7.6.4/bin/gradle :app:assembleDebug --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
