@@ -700,9 +700,13 @@ public class AssetHttpServer extends NanoHTTPD {
             summary = "No ETH value and no calldata";
         }
 
+        String toJson = (to == null ? "null" : ("\"" + escapeJson(to) + "\""));
+
         String detailsJson =
                 "{"
                         + "\"kind\":\"" + escapeJson(action.kind) + "\""
+                        + ",\"to\":" + toJson
+                        + ",\"recipient\":" + toJson
                         + (action.selector != null ? (",\"selector\":\"" + escapeJson(action.selector) + "\"") : "")
                         + "}";
 
