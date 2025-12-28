@@ -28,10 +28,13 @@ public class AssetHttpServer extends NanoHTTPD {
 
         // --- API PLACEHOLDER (we will wire logic next) ---
         if (uri.startsWith("/api/")) {
+            String body = "{\"ok\":false,\"error\":\"API not implemented on Android yet\",\"path\":\""
+                    + uri.replace("\"", "\\\"")
+                    + "\"}";
             return newFixedLengthResponse(
-                    Response.Status.OK,
+                    Response.Status.NOT_IMPLEMENTED,
                     "application/json",
-                    "{}"
+                    body
             );
         }
 
