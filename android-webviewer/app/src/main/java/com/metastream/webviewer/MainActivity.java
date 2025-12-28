@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -19,18 +20,22 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView wv;
 
+    // For the first ~2 seconds, force START_URL and block auto-jumps into tabs
+    private long launchUptimeMs;
+    private boolean startupLock = true;
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // Prevent Activity-level state restore from influencing WebView
+        // Avoid Activity-level restore influencing WebView
         savedInstanceState = null;
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        wv = findViewById(R.id.webview);
+        launchUptimeMs = SystemClock.uptimeMillis();
 
-        // Critical: prevent WebView from saving/restoring its own navigation state
+        wv = findViewById(R.id.webview);
         wv.setSaveEnabled(false);
 
         WebSettings s = wv.getSettings();
@@ -41,60 +46,69 @@ public class MainActivity extends AppCompatActivity {
 
         wv.setWebViewClient(new WebViewClient() {
 
+            private boolean isWithinStartupWindow() {
+                return startupLock && (SystemClock.uptimeMillis() - launchUptimeMs) < 2000;
+            }
+
+            private boolean isTabUrl(String url) {
+                if (url == null) return false;
+                // These are the two forms you have seen
+                return url.startsWith("file:///tabs/") ||
+                       url.startsWith("file:/tabs/") ||
+                       url.startsWith(ASSET_ROOT + "tabs/");
+            }
+
+            private String rewriteTabUrlToAssets(String url) {
+                if (url.startsWith("file:///tabs/")) {
+                    return ASSET_ROOT + "tabs/" + url.substring("file:///tabs/".length());
+                }
+                if (url.startsWith("file:/tabs/")) {
+                    return ASSET_ROOT + "tabs/" + url.substring("file:/tabs/".length());
+                }
+                return url;
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri u = request.getUrl();
-                String url = u.toString();
+                String url = (u == null) ? null : u.toString();
 
-                // Root-relative links like "/tabs/x.html" become "file:///tabs/x.html" in file://
-                if (url.startsWith("file:///tabs/")) {
-                    String rewritten = ASSET_ROOT + "tabs/" + url.substring("file:///tabs/".length());
-                    view.loadUrl(rewritten);
+                // During startup: do NOT allow automatic navigation into tabs.
+                if (isWithinStartupWindow() && isTabUrl(url)) {
+                    // Force back to index.html
+                    view.loadUrl(START_URL);
                     return true;
                 }
 
-                // Some devices produce "file:/tabs/..."
-                if (url.startsWith("file:/tabs/")) {
-                    String rewritten = ASSET_ROOT + "tabs/" + url.substring("file:/tabs/".length());
-                    view.loadUrl(rewritten);
+                // Normal operation: rewrite /tabs links to assets so they load.
+                if (isTabUrl(url) && (url.startsWith("file:/tabs/") || url.startsWith("file:///tabs/"))) {
+                    view.loadUrl(rewriteTabUrlToAssets(url));
                     return true;
                 }
 
                 return false;
             }
 
-            // Extra safety for older/alternate WebView behaviors
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                if (url == null) return false;
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
 
-                if (url.startsWith("file:///tabs/")) {
-                    String rewritten = ASSET_ROOT + "tabs/" + url.substring("file:///tabs/".length());
-                    view.loadUrl(rewritten);
-                    return true;
+                // If something managed to load a tab during startup, immediately correct it.
+                if (isWithinStartupWindow() && isTabUrl(url)) {
+                    view.loadUrl(START_URL);
+                    return;
                 }
 
-                if (url.startsWith("file:/tabs/")) {
-                    String rewritten = ASSET_ROOT + "tabs/" + url.substring("file:/tabs/".length());
-                    view.loadUrl(rewritten);
-                    return true;
+                // Once index.html has loaded, release the startup lock shortly after.
+                if (START_URL.equals(url)) {
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> startupLock = false, 300);
                 }
-
-                return false;
             }
         });
 
-        // Load start page
+        // Start clean and load index.html
+        wv.clearHistory();
+        wv.clearCache(true);
         wv.loadUrl(START_URL);
-
-        // IMPORTANT: Some WebViews restore a previous page AFTER initial load.
-        // Force index.html again on the next UI loop tick and clear history so it sticks.
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (wv == null) return;
-            wv.clearHistory();
-            if (!START_URL.equals(wv.getUrl())) {
-                wv.loadUrl(START_URL);
-            }
-        });
     }
 }
