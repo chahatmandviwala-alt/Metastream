@@ -26,6 +26,6 @@ public class MainActivity extends AppCompatActivity {
 
         // NOTE: 127.0.0.1 inside Android is the phone/emulator itself, not your PC.
         // This will show a blank/fail unless the app content is bundled as assets or you use a reachable host.
-        wv.loadUrl("http://127.0.0.1:3000/");
+        wv.loadUrl("file:///android_asset/index.html");
     }
 }
