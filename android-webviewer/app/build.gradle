@@ -34,8 +34,6 @@ dependencies {
     // QR generation (to return qrDataUrl like server.js does)
     implementation 'com.google.zxing:core:3.5.3'
 
-    implementation("org.web3j:core:4.10.3") {
-        exclude group: "org.bouncycastle", module: "bcprov-jdk18on"
 }
 
 
