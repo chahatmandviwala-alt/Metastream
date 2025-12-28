@@ -39,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Start embedded localhost server for offline mode
         try {
-            httpServer = new AssetHttpServer(PORT, getAssets());
+            httpServer = new AssetHttpServer(this);
             httpServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
         } catch (Exception e) {
             e.printStackTrace();
