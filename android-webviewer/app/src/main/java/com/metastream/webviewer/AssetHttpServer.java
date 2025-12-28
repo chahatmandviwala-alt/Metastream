@@ -62,7 +62,7 @@ public class AssetHttpServer extends NanoHTTPD {
         String uri = null;
         Method method = null;
 
-        // We parse body once per request (only for methods that may contain one).
+        // Parse body once per request for methods that may contain one.
         Map<String, String> files = new HashMap<>();
         String postData = "";
 
@@ -90,7 +90,7 @@ public class AssetHttpServer extends NanoHTTPD {
                 }
             }
 
-            // Log only API calls to keep logcat noise down.
+            // Log only API calls to keep noise down.
             if (uri.startsWith("/api/")) {
                 String qs = session.getQueryParameterString();
                 String ct = session.getHeaders() != null ? session.getHeaders().get("content-type") : null;
@@ -123,7 +123,7 @@ public class AssetHttpServer extends NanoHTTPD {
                     return handleApiUrDecoded();
                 }
 
-                // IMPORTANT: Unknown /api should NEVER return plain text.
+                // Unknown /api should NEVER return plain text.
                 return json(404, "{\"ok\":false,\"error\":\"not_found\",\"message\":\"Unknown API endpoint\"}");
             }
 
@@ -220,11 +220,7 @@ public class AssetHttpServer extends NanoHTTPD {
         int parentFp = fingerprintOf(parent);
 
         // Build CBOR map matching server.js structure
-        // top.set(3, publicKey)
-        // top.set(4, chainCode)
-        // top.set(6, originTagged(304))
-        // top.set(8, parentFp)
-        // top.set(9, "AirGap - meta")
+        // 3: publicKey, 4: chainCode, 6: originTagged(304), 8: parentFp, 9: "AirGap - meta"
         com.upokecenter.cbor.CBORObject originTagged = buildOriginTag304(derivationPath, masterFp);
 
         com.upokecenter.cbor.CBORObject top = com.upokecenter.cbor.CBORObject.NewMap();
@@ -258,8 +254,7 @@ public class AssetHttpServer extends NanoHTTPD {
 
     // --------------------------
     // /api/ur/part  (Sign - collector)
-    // Single-part URs: ur:<type>/<bytewordsMinimal>
-    // Signing (/api/sign) to be implemented later.
+    // Single-part URs: ur:<type>/<bytewords>
     // --------------------------
     private Response handleApiUrPart(String body) throws Exception {
         String part = jsonGetString(body, "part", "").trim();
@@ -281,6 +276,9 @@ public class AssetHttpServer extends NanoHTTPD {
         String bw = p.substring(slash + 1);
 
         try {
+            // NOTE: Your scanned frames are "standard" bytewords-like (4-letter words).
+            // This decoder currently expects the "minimal" 2-letter form you used in /api/gen.
+            // If decode fails, we still store nothing and return status=error.
             byte[] decoded = bytewordsMinimalDecodeWithCrc(bw);
             lastUrType = type;
             lastUrCbor = decoded;
@@ -302,28 +300,441 @@ public class AssetHttpServer extends NanoHTTPD {
     }
 
     private Response handleApiUrDecoded() {
-        if (lastUrType == null || lastUrCbor == null) {
-            return jsonOk("{\"ok\":true,\"present\":false}");
+        try {
+            if (lastUrType == null || lastUrCbor == null) {
+                return jsonOk("{\"error\":\"No assembled UR yet. Scan the QR first.\"}");
+            }
+            if (!"eth-sign-request".equals(lastUrType)) {
+                return jsonOk("{\"error\":\"Last UR type was " + escapeJson(lastUrType) + ", expected eth-sign-request.\"}");
+            }
+
+            // Decode the ETH-SIGN-REQUEST CBOR
+            com.upokecenter.cbor.CBORObject obj = com.upokecenter.cbor.CBORObject.DecodeFromBytes(lastUrCbor);
+            if (obj == null || !obj.isMap()) {
+                return jsonOk("{\"error\":\"Invalid CBOR: expected map.\"}");
+            }
+
+            // Typical eth-sign-request map keys:
+            // 1: requestId (bstr)
+            // 2: signData (bstr)
+            // 3: dataType (int)   1=legacy tx, 4=EIP-1559 typed tx
+            // 4: chainId (int)    optional
+            byte[] requestId = getBytesByKey(obj, 1);
+            byte[] signData = getBytesByKey(obj, 2);
+            Integer dataType = getIntByKey(obj, 3);
+            Long chainId = getLongByKey(obj, 4);
+
+            if (signData == null || signData.length == 0) signData = findLikelySignData(obj);
+            if (dataType == null) dataType = findLikelyDataType(obj);
+
+            if (signData == null || signData.length == 0) {
+                return jsonOk("{\"error\":\"Could not locate signData in CBOR.\"}");
+            }
+            if (dataType == null) {
+                return jsonOk("{\"error\":\"Could not locate dataType in CBOR.\"}");
+            }
+
+            String requestIdHex = requestId != null ? bytesToHex(requestId) : null;
+
+            if (dataType == 4) {
+                // EIP-1559 typed transaction: 0x02 || rlp(list)
+                if ((signData[0] & 0xff) != 0x02) {
+                    return jsonOk("{\"error\":\"Expected typed tx prefix 0x02 but did not find it.\"}");
+                }
+                byte[] rlpPayload = Arrays.copyOfRange(signData, 1, signData.length);
+                List<byte[]> fields = rlpDecodeList(rlpPayload);
+
+                // [chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data, accessList]
+                if (fields.size() < 8) {
+                    return jsonOk("{\"error\":\"EIP-1559 RLP decode returned too few fields.\"}");
+                }
+
+                long chainIdVal = (chainId != null) ? chainId : bigIntFromBytes(fields.get(0)).longValue();
+                long nonce = bigIntFromBytes(fields.get(1)).longValue();
+                java.math.BigInteger maxPriWei = bigIntFromBytes(fields.get(2));
+                java.math.BigInteger maxFeeWei = bigIntFromBytes(fields.get(3));
+                long gasLimit = bigIntFromBytes(fields.get(4)).longValue();
+                byte[] toBuf = fields.get(5);
+                java.math.BigInteger valueWei = bigIntFromBytes(fields.get(6));
+                byte[] dataBuf = fields.get(7);
+
+                String toAddr = (toBuf == null || toBuf.length == 0) ? null : ("0x" + bytesToHex(toBuf));
+                String valueEth = formatUnits(valueWei, 18);
+
+                Action action = classifyAction(chainIdVal, toAddr, valueWei, dataBuf);
+
+                String txJson =
+                        "{"
+                                + "\"type\":\"eip-1559\","
+                                + "\"chainId\":" + chainIdVal + ","
+                                + "\"nonce\":" + nonce + ","
+                                + "\"maxPriorityFeePerGasWei\":\"" + maxPriWei.toString() + "\","
+                                + "\"maxPriorityFeePerGas\":\"" + escapeJson(formatGwei(maxPriWei)) + "\","
+                                + "\"maxFeePerGasWei\":\"" + maxFeeWei.toString() + "\","
+                                + "\"maxFeePerGas\":\"" + escapeJson(formatGwei(maxFeeWei)) + "\","
+                                + "\"gasLimit\":" + gasLimit + ","
+                                + "\"to\":" + (toAddr == null ? "null" : ("\"" + escapeJson(toAddr) + "\"")) + ","
+                                + "\"valueWei\":\"" + valueWei.toString() + "\","
+                                + "\"valueEth\":\"" + escapeJson(valueEth) + "\""
+                                + "}";
+
+                String humanJson = buildHumanJson(chainIdVal, toAddr, valueEth, action);
+
+                String out =
+                        "{"
+                                + "\"urType\":\"eth-sign-request\","
+                                + "\"dataType\":" + dataType + ","
+                                + "\"chainId\":" + chainIdVal + ","
+                                + "\"requestIdHex\":" + (requestIdHex == null ? "null" : ("\"" + requestIdHex + "\"")) + ","
+                                + "\"tx\":" + txJson + ","
+                                + "\"human\":" + humanJson
+                                + "}";
+
+                return jsonOk(out);
+            }
+
+            if (dataType == 1) {
+                // Legacy transaction: rlp(list)
+                List<byte[]> fields = rlpDecodeList(signData);
+
+                // [nonce, gasPrice, gasLimit, to, value, data]
+                if (fields.size() < 6) {
+                    return jsonOk("{\"error\":\"Legacy RLP decode returned too few fields.\"}");
+                }
+
+                long nonce = bigIntFromBytes(fields.get(0)).longValue();
+                java.math.BigInteger gasPriceWei = bigIntFromBytes(fields.get(1));
+                long gasLimit = bigIntFromBytes(fields.get(2)).longValue();
+                byte[] toBuf = fields.get(3);
+                java.math.BigInteger valueWei = bigIntFromBytes(fields.get(4));
+                byte[] dataBuf = fields.get(5);
+
+                long chainIdVal = (chainId != null) ? chainId : 0L;
+                String toAddr = (toBuf == null || toBuf.length == 0) ? null : ("0x" + bytesToHex(toBuf));
+                String valueEth = formatUnits(valueWei, 18);
+
+                Action action = classifyAction(chainIdVal, toAddr, valueWei, dataBuf);
+
+                String txJson =
+                        "{"
+                                + "\"type\":\"legacy\","
+                                + "\"chainId\":" + (chainIdVal == 0 ? "null" : String.valueOf(chainIdVal)) + ","
+                                + "\"nonce\":" + nonce + ","
+                                + "\"gasPriceWei\":\"" + gasPriceWei.toString() + "\","
+                                + "\"gasPrice\":\"" + escapeJson(formatGwei(gasPriceWei)) + "\","
+                                + "\"gasLimit\":" + gasLimit + ","
+                                + "\"to\":" + (toAddr == null ? "null" : ("\"" + escapeJson(toAddr) + "\"")) + ","
+                                + "\"valueWei\":\"" + valueWei.toString() + "\","
+                                + "\"valueEth\":\"" + escapeJson(valueEth) + "\""
+                                + "}";
+
+                String humanJson = buildHumanJson(chainIdVal, toAddr, valueEth, action);
+
+                String out =
+                        "{"
+                                + "\"urType\":\"eth-sign-request\","
+                                + "\"dataType\":" + dataType + ","
+                                + "\"chainId\":" + (chainIdVal == 0 ? "null" : String.valueOf(chainIdVal)) + ","
+                                + "\"requestIdHex\":" + (requestIdHex == null ? "null" : ("\"" + requestIdHex + "\"")) + ","
+                                + "\"tx\":" + txJson + ","
+                                + "\"human\":" + humanJson
+                                + "}";
+
+                return jsonOk(out);
+            }
+
+            return jsonOk("{\"error\":\"Unsupported dataType: " + dataType + "\"}");
+
+        } catch (Exception e) {
+            return jsonOk("{\"error\":\"" + escapeJson(e.getMessage() == null ? "decode error" : e.getMessage()) + "\"}");
         }
-        String json =
+    }
+
+    // --------------------------
+    // ETH SignRequest decoding helpers
+    // --------------------------
+
+    private static byte[] getBytesByKey(com.upokecenter.cbor.CBORObject map, int key) {
+        try {
+            com.upokecenter.cbor.CBORObject v = map.get(com.upokecenter.cbor.CBORObject.FromObject(key));
+            if (v == null) return null;
+            if (v.isByteString()) return v.GetByteString();
+            return null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static Integer getIntByKey(com.upokecenter.cbor.CBORObject map, int key) {
+        try {
+            com.upokecenter.cbor.CBORObject v = map.get(com.upokecenter.cbor.CBORObject.FromObject(key));
+            if (v == null) return null;
+            if (v.isNumber()) return v.AsInt32();
+            return null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static Long getLongByKey(com.upokecenter.cbor.CBORObject map, int key) {
+        try {
+            com.upokecenter.cbor.CBORObject v = map.get(com.upokecenter.cbor.CBORObject.FromObject(key));
+            if (v == null) return null;
+            if (v.isNumber()) return v.AsInt64();
+            return null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Fallback: search CBOR map for a bytes field that looks like tx sign bytes.
+     * Heuristics: length > 20 and either starts with 0x02 (typed tx) or is an RLP list (0xc0+).
+     */
+    private static byte[] findLikelySignData(com.upokecenter.cbor.CBORObject map) {
+        try {
+            for (com.upokecenter.cbor.CBORObject k : map.getKeys()) {
+                com.upokecenter.cbor.CBORObject v = map.get(k);
+                if (v != null && v.isByteString()) {
+                    byte[] b = v.GetByteString();
+                    if (b != null && b.length > 20) {
+                        int first = b[0] & 0xff;
+                        if (first == 0x02 || first >= 0xc0) return b;
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        return null;
+    }
+
+    /** Fallback: find a small integer in the map that matches known data types (1 or 4). */
+    private static Integer findLikelyDataType(com.upokecenter.cbor.CBORObject map) {
+        try {
+            for (com.upokecenter.cbor.CBORObject k : map.getKeys()) {
+                com.upokecenter.cbor.CBORObject v = map.get(k);
+                if (v != null && v.isNumber()) {
+                    int n = v.AsInt32();
+                    if (n == 1 || n == 4) return n;
+                }
+            }
+        } catch (Exception ignored) { }
+        return null;
+    }
+
+    private static java.math.BigInteger bigIntFromBytes(byte[] b) {
+        if (b == null || b.length == 0) return java.math.BigInteger.ZERO;
+        return new java.math.BigInteger(1, b);
+    }
+
+    // Minimal RLP list decoder returning list of byte[] items (strings). Sufficient for tx decoding.
+    private static List<byte[]> rlpDecodeList(byte[] rlp) throws Exception {
+        if (rlp == null || rlp.length == 0) throw new Exception("empty rlp");
+        int[] pos = new int[]{0};
+        RlpItem item = rlpDecodeItem(rlp, pos);
+        if (!item.isList || item.list == null) throw new Exception("rlp root is not list");
+        return item.list;
+    }
+
+    private static class RlpItem {
+        boolean isList;
+        byte[] bytes;
+        List<byte[]> list;
+    }
+
+    private static RlpItem rlpDecodeItem(byte[] data, int[] posRef) throws Exception {
+        int pos = posRef[0];
+        if (pos >= data.length) throw new Exception("rlp overflow");
+
+        int prefix = data[pos] & 0xff;
+        RlpItem out = new RlpItem();
+
+        if (prefix <= 0x7f) {
+            out.isList = false;
+            out.bytes = new byte[]{data[pos]};
+            posRef[0] = pos + 1;
+            return out;
+        }
+
+        if (prefix <= 0xb7) {
+            int len = prefix - 0x80;
+            if (len == 0) out.bytes = new byte[0];
+            else {
+                ensureAvail(data, pos + 1, len);
+                out.bytes = Arrays.copyOfRange(data, pos + 1, pos + 1 + len);
+            }
+            out.isList = false;
+            posRef[0] = pos + 1 + len;
+            return out;
+        }
+
+        if (prefix <= 0xbf) {
+            int lenOfLen = prefix - 0xb7;
+            ensureAvail(data, pos + 1, lenOfLen);
+            int len = readBigEndianInt(data, pos + 1, lenOfLen);
+            ensureAvail(data, pos + 1 + lenOfLen, len);
+            out.bytes = Arrays.copyOfRange(data, pos + 1 + lenOfLen, pos + 1 + lenOfLen + len);
+            out.isList = false;
+            posRef[0] = pos + 1 + lenOfLen + len;
+            return out;
+        }
+
+        if (prefix <= 0xf7) {
+            int listLen = prefix - 0xc0;
+            ensureAvail(data, pos + 1, listLen);
+            int end = pos + 1 + listLen;
+
+            out.isList = true;
+            java.util.ArrayList<byte[]> items = new java.util.ArrayList<>();
+            posRef[0] = pos + 1;
+
+            while (posRef[0] < end) {
+                RlpItem child = rlpDecodeItem(data, posRef);
+                if (child.isList) {
+                    // Not needed for tx summary; keep placeholder.
+                    items.add(new byte[0]);
+                } else {
+                    items.add(child.bytes == null ? new byte[0] : child.bytes);
+                }
+            }
+            if (posRef[0] != end) throw new Exception("rlp list length mismatch");
+            out.list = items;
+            return out;
+        }
+
+        int lenOfLen = prefix - 0xf7;
+        ensureAvail(data, pos + 1, lenOfLen);
+        int listLen = readBigEndianInt(data, pos + 1, lenOfLen);
+        ensureAvail(data, pos + 1 + lenOfLen, listLen);
+        int end = pos + 1 + lenOfLen + listLen;
+
+        out.isList = true;
+        java.util.ArrayList<byte[]> items = new java.util.ArrayList<>();
+        posRef[0] = pos + 1 + lenOfLen;
+
+        while (posRef[0] < end) {
+            RlpItem child = rlpDecodeItem(data, posRef);
+            if (child.isList) items.add(new byte[0]);
+            else items.add(child.bytes == null ? new byte[0] : child.bytes);
+        }
+        if (posRef[0] != end) throw new Exception("rlp list length mismatch");
+        out.list = items;
+        return out;
+    }
+
+    private static void ensureAvail(byte[] data, int start, int len) throws Exception {
+        if (len < 0 || start < 0 || start + len > data.length) throw new Exception("rlp out of bounds");
+    }
+
+    private static int readBigEndianInt(byte[] data, int start, int len) {
+        int v = 0;
+        for (int i = 0; i < len; i++) {
+            v = (v << 8) | (data[start + i] & 0xff);
+        }
+        return v;
+    }
+
+    private static String formatGwei(java.math.BigInteger wei) {
+        java.math.BigDecimal bd = new java.math.BigDecimal(wei);
+        java.math.BigDecimal g = bd.divide(new java.math.BigDecimal("1000000000"), 9, java.math.RoundingMode.DOWN);
+        return g.stripTrailingZeros().toPlainString() + " gwei";
+    }
+
+    private static String formatUnits(java.math.BigInteger value, int decimals) {
+        java.math.BigDecimal bd = new java.math.BigDecimal(value);
+        java.math.BigDecimal div = java.math.BigDecimal.TEN.pow(decimals);
+        java.math.BigDecimal out = bd.divide(div, decimals, java.math.RoundingMode.DOWN);
+        return out.stripTrailingZeros().toPlainString();
+    }
+
+    private static class Action {
+        String kind;
+        String recipient;
+        String selector;
+        String tokenSymbol;
+        String humanAmount;
+    }
+
+    private static Action classifyAction(long chainId, String toAddr, java.math.BigInteger valueWei, byte[] dataBuf) {
+        Action a = new Action();
+
+        String dataHex = (dataBuf == null || dataBuf.length == 0) ? "" : bytesToHex(dataBuf);
+        boolean hasData = dataHex != null && dataHex.length() > 0;
+
+        if (!hasData) {
+            a.kind = (valueWei.signum() > 0) ? "eth.transfer" : "eth-no-data";
+            a.recipient = toAddr;
+            return a;
+        }
+
+        // ERC20 transfer selector: a9059cbb (transfer(address,uint256))
+        if (dataHex.length() == 8 + 64 + 64 && dataHex.startsWith("a9059cbb")) {
+            String toArg = dataHex.substring(8, 8 + 64);
+            String amtArg = dataHex.substring(8 + 64, 8 + 128);
+
+            String recipient = "0x" + toArg.substring(24);
+            java.math.BigInteger amountRaw = new java.math.BigInteger(amtArg, 16);
+
+            a.kind = "erc20.transfer";
+            a.recipient = recipient;
+            a.tokenSymbol = "ERC20";
+            a.humanAmount = formatUnits(amountRaw, 18);
+            return a;
+        }
+
+        a.kind = "contract.call";
+        a.recipient = toAddr;
+        a.selector = (dataHex.length() >= 8) ? dataHex.substring(0, 8) : null;
+        return a;
+    }
+
+    private static String buildHumanJson(long chainId, String toAddr, String valueEth, Action action) {
+        String token = "ETH";
+        String amount = valueEth;
+        String to = toAddr;
+
+        String summary;
+
+        if ("erc20.transfer".equals(action.kind)) {
+            token = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
+            amount = (action.humanAmount != null ? action.humanAmount : "0");
+            to = action.recipient;
+            summary = "Send " + amount + " " + token + " to " + (to == null ? "(unknown)" : to);
+        } else if ("eth.transfer".equals(action.kind)) {
+            to = action.recipient;
+            summary = "Send " + valueEth + " ETH to " + (to == null ? "(unknown)" : to);
+        } else if ("contract.call".equals(action.kind)) {
+            summary = "Contract call to " + (toAddr == null ? "(unknown)" : toAddr)
+                    + (action.selector != null ? (" (selector " + action.selector + ")") : "");
+        } else {
+            summary = "No ETH value and no calldata";
+        }
+
+        String detailsJson =
                 "{"
-                        + "\"ok\":true,"
-                        + "\"present\":true,"
-                        + "\"type\":\"" + escapeJson(lastUrType) + "\","
-                        + "\"cborHex\":\"" + bytesToHex(lastUrCbor) + "\""
+                        + "\"kind\":\"" + escapeJson(action.kind) + "\""
+                        + (action.selector != null ? (",\"selector\":\"" + escapeJson(action.selector) + "\"") : "")
                         + "}";
-        return jsonOk(json);
+
+        String feesJson = "{}";
+
+        return "{"
+                + "\"fromAddress\":null,"
+                + "\"toAddress\":" + (to == null ? "null" : ("\"" + escapeJson(to) + "\"")) + ","
+                + "\"token\":\"" + escapeJson(token) + "\","
+                + "\"amount\":\"" + escapeJson(amount) + "\","
+                + "\"details\":" + detailsJson + ","
+                + "\"fees\":" + feesJson + ","
+                + "\"summary\":\"" + escapeJson(summary) + "\""
+                + "}";
     }
 
     // --------------------------
     // Static asset serving
     // --------------------------
     private Response serveAsset(String uri) throws Exception {
-        // strip leading '/'
         String assetPath = uri.startsWith("/") ? uri.substring(1) : uri;
         if (assetPath.isEmpty()) assetPath = "index.html";
 
-        // prevent path traversal
         if (assetPath.contains("..")) {
             return newFixedLengthResponse(Response.Status.FORBIDDEN, "text/plain", "forbidden");
         }
@@ -393,7 +804,7 @@ public class AssetHttpServer extends NanoHTTPD {
     }
 
     // --------------------------
-    // Helpers (body read, JSON extract, HD derivation, CBOR origin, Bytewords, QR)
+    // Basic helpers (readAll, JSON extract, HD derivation, CBOR origin, Bytewords, QR)
     // --------------------------
     private static byte[] readAll(InputStream in) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -403,7 +814,6 @@ public class AssetHttpServer extends NanoHTTPD {
         return out.toByteArray();
     }
 
-    // NOTE: This is a minimal JSON getter (kept to avoid changing UI expectations).
     private static String jsonGetString(String json, String key, String def) {
         if (json == null) return def;
         String pat = "\"" + key + "\"";
