@@ -1,12 +1,15 @@
-apply plugin: 'com.android.application'
+plugins {
+    id 'com.android.application'
+}
 
 android {
-    compileSdkVersion 29
+    namespace "com.metastream.webviewer"
+    compileSdk 33
 
     defaultConfig {
         applicationId "com.metastream.webviewer"
-        minSdkVersion 21
-        targetSdkVersion 29
+        minSdk 21
+        targetSdk 33
         versionCode 1
         versionName "1.0"
     }
@@ -19,5 +22,5 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.2.0'
+    implementation "androidx.appcompat:appcompat:1.6.1"
 }
