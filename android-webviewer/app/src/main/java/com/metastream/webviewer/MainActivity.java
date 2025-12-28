@@ -10,6 +10,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebChromeClient;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -105,6 +106,8 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
+        wv.setWebChromeClient(new WebChromeClient());
 
         // Start clean and load index.html
         wv.clearHistory();
