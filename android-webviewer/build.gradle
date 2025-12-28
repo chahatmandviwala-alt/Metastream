@@ -5,6 +5,7 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:7.4.2'
+        implementation 'com.github.BlockchainCommons:bc-ur-java:master-SNAPSHOT'
     }
 }
 
@@ -12,5 +13,6 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        implementation 'com.github.BlockchainCommons:bc-ur-java:master-SNAPSHOT'
     }
 }
