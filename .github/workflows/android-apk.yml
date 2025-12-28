@@ -10,10 +10,6 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: android-webviewer
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,7 +19,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -36,6 +31,7 @@ jobs:
           sdkmanager "platforms;android-29" "build-tools;29.0.3"
 
       - name: Build debug APK
+        working-directory: android-webviewer
         run: |
           ./gradle-7.6.4/bin/gradle :app:assembleDebug
 
