@@ -483,24 +483,50 @@ private Response handleApiSign(String body) throws Exception {
     }
 
     // Hash the payload bytes (same as server.js: keccak256 of signData bytes)
-    byte[] hash = org.web3j.crypto.Hash.sha3(signData);
+// Keccak256(signData)
+byte[] hash = keccak256(signData);
 
-    // Sign with secp256k1
-    org.web3j.crypto.ECKeyPair keyPair = org.web3j.crypto.ECKeyPair.create(hexToBytes(privateKeyHex));
-    org.web3j.crypto.Sign.SignatureData sig = org.web3j.crypto.Sign.signMessage(hash, keyPair, false);
+// Build ECKey from private key (bitcoinj uses secp256k1)
+java.math.BigInteger priv = new java.math.BigInteger(1, hexToBytes(privateKeyHex));
+org.bitcoinj.core.ECKey ecKey = org.bitcoinj.core.ECKey.fromPrivate(priv, false);
 
-    byte[] r = pad32(sig.getR());
-    byte[] s = pad32(sig.getS());
-    byte v = sig.getV();  // usually 27 or 28
+// Sign the 32-byte hash
+org.bitcoinj.core.ECKey.ECDSASignature sig = ecKey.sign(org.bitcoinj.core.Sha256Hash.wrap(hash));
 
-    // Convert v into 0/1 for the 65-byte compact signature format
-    byte vNorm = v;
-    if (vNorm == 27 || vNorm == 28) vNorm = (byte) (vNorm - 27);
+// Ensure low-S form (Ethereum requires this)
+sig = sig.toCanonicalised();
 
-    byte[] sig65 = new byte[65];
-    System.arraycopy(r, 0, sig65, 0, 32);
-    System.arraycopy(s, 0, sig65, 32, 32);
-    sig65[64] = vNorm;
+// r and s (32 bytes each)
+byte[] r = pad32(sig.r.toByteArray());
+byte[] s = pad32(sig.s.toByteArray());
+
+// recovery id (needed to compute v)
+int recId = -1;
+for (int i = 0; i < 4; i++) {
+    org.bitcoinj.core.ECKey k = org.bitcoinj.core.ECKey.recoverFromSignature(
+            i,
+            sig,
+            org.bitcoinj.core.Sha256Hash.wrap(hash),
+            false
+    );
+    if (k != null && k.getPubKeyPoint().equals(ecKey.getPubKeyPoint())) {
+        recId = i;
+        break;
+    }
+}
+if (recId == -1) {
+    return jsonError(Response.Status.INTERNAL_ERROR, "Could not construct recoverable signature");
+}
+
+// Ethereum v is 27/28 for unprotected signatures (we return both forms in CBOR)
+int v = recId + 27;
+byte vNorm = (byte) (recId & 0x01); // 0/1
+
+byte[] sig65 = new byte[65];
+System.arraycopy(r, 0, sig65, 0, 32);
+System.arraycopy(s, 0, sig65, 32, 32);
+sig65[64] = vNorm;
+
 
     // CBOR response
     com.upokecenter.cbor.CBORObject resp = com.upokecenter.cbor.CBORObject.NewMap();
@@ -539,6 +565,14 @@ private static byte[] hexToBytes(String hex) {
         out[i] = (byte) ((hi << 4) | lo);
     }
     return out;
+}
+
+private static byte[] keccak256(byte[] input) {
+    // bitcoinj does not include keccak; use BouncyCastle digest already available in Android toolchain
+    org.bouncycastle.jcajce.provider.digest.Keccak.Digest256 d =
+            new org.bouncycastle.jcajce.provider.digest.Keccak.Digest256();
+    d.update(input, 0, input.length);
+    return d.digest();
 }
 
 private static byte[] pad32(byte[] b) {
