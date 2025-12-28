@@ -3,6 +3,7 @@ package com.metastream.webviewer;
 import android.content.Context;
 import android.content.res.AssetManager;
 import android.util.Base64;
+import android.util.Log;
 
 import org.bitcoinj.core.Utils;
 import org.bitcoinj.crypto.ChildNumber;
@@ -10,25 +11,32 @@ import org.bitcoinj.crypto.DeterministicKey;
 import org.bitcoinj.crypto.HDKeyDerivation;
 import org.bitcoinj.crypto.MnemonicCode;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.zip.CRC32;
 
 import fi.iki.elonen.NanoHTTPD;
 
 /**
  * Local offline HTTP server:
- *   - Serves web UI from android_asset/ (copied from your /public at build time)
+ *   - Serves web UI from android_asset/ (copied from /public at build time)
  *   - Provides /api/* endpoints used by connect.html + sign.html
  *
- * Runs fully offline: WebView loads http://127.0.0.1:3000/index.html
- * and fetch("/api/...") hits this server.
+ * WebView loads: http://127.0.0.1:3000/
+ * fetch("/api/...") hits this server.
  */
 public class AssetHttpServer extends NanoHTTPD {
+
+    private static final String TAG = "ASSET_HTTP";
 
     private static final int PORT = 3000;
     private static final String ASSET_ROOT_DIR = ""; // root of assets where index.html lives
@@ -51,50 +59,125 @@ public class AssetHttpServer extends NanoHTTPD {
     // --------------------------
     @Override
     public Response serve(IHTTPSession session) {
-        try {
-            String method = session.getMethod().name();
-            String uri = session.getUri();
+        String uri = null;
+        Method method = null;
 
-            // CORS preflight for fetch()
-            if ("OPTIONS".equals(method)) {
-                return cors(newFixedLengthResponse(Response.Status.OK, "text/plain", "ok"));
+        // We parse body once per request (only for methods that may contain one).
+        Map<String, String> files = new HashMap<>();
+        String postData = "";
+
+        try {
+            method = session.getMethod();
+            uri = session.getUri();
+            if (uri == null) uri = "/";
+
+            // Preflight should always succeed.
+            if (method == Method.OPTIONS) {
+                return cors(newFixedLengthResponse(Response.Status.NO_CONTENT, "application/json; charset=utf-8", "{}"));
             }
 
-            // --- API routes ---
-            if (uri.startsWith("/api/")) {
-                if ("/api/gen".equals(uri) && "POST".equals(method)) {
-                    return handleApiGen(session);
+            // Parse body once if applicable
+            if (method == Method.POST || method == Method.PUT || method == Method.PATCH) {
+                try {
+                    session.parseBody(files);
+                    postData = readPostDataFromFiles(files);
+                } catch (Exception e) {
+                    Log.e(TAG, "parseBody failed for " + method + " " + uri, e);
+                    if (uri.startsWith("/api/")) {
+                        return json(400, "{\"ok\":false,\"error\":\"bad_request\",\"message\":\"Failed to parse request body\"}");
+                    }
+                    return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "bad request");
                 }
-                if ("/api/ur/reset".equals(uri) && "POST".equals(method)) {
+            }
+
+            // Log only API calls to keep logcat noise down.
+            if (uri.startsWith("/api/")) {
+                String qs = session.getQueryParameterString();
+                String ct = session.getHeaders() != null ? session.getHeaders().get("content-type") : null;
+
+                Log.i(TAG,
+                        "API " + method + " " + uri +
+                                (qs != null ? ("?" + qs) : "") +
+                                " ct=" + ct +
+                                " bodyLen=" + (postData != null ? postData.length() : 0) +
+                                " bodyPrefix=" + safePrefix(postData, 400)
+                );
+            }
+
+            // --------------------------
+            // API routes
+            // --------------------------
+            if (uri.startsWith("/api/")) {
+                if ("/api/gen".equals(uri) && method == Method.POST) {
+                    return handleApiGen(postData);
+                }
+                if ("/api/ur/reset".equals(uri) && method == Method.POST) {
                     lastUrType = null;
                     lastUrCbor = null;
                     return jsonOk("{\"ok\":true}");
                 }
-                if ("/api/ur/part".equals(uri) && "POST".equals(method)) {
-                    return handleApiUrPart(session);
+                if ("/api/ur/part".equals(uri) && method == Method.POST) {
+                    return handleApiUrPart(postData);
                 }
-                if ("/api/ur/decoded".equals(uri) && "GET".equals(method)) {
+                if ("/api/ur/decoded".equals(uri) && method == Method.GET) {
                     return handleApiUrDecoded();
                 }
-                // If your UI calls /api/sign next, we’ll implement in a later step.
-                return jsonError(Response.Status.NOT_FOUND, "Unknown API route: " + uri);
+
+                // IMPORTANT: Unknown /api should NEVER return plain text.
+                return json(404, "{\"ok\":false,\"error\":\"not_found\",\"message\":\"Unknown API endpoint\"}");
             }
 
-            // --- Static assets over HTTP ---
+            // --------------------------
+            // Static assets over HTTP
+            // --------------------------
             if ("/".equals(uri)) uri = "/index.html";
             return serveAsset(uri);
 
         } catch (Exception e) {
-            return jsonError(Response.Status.INTERNAL_ERROR, e.getMessage() == null ? "internal error" : e.getMessage());
+            Log.e(TAG, "Unhandled error in serve() for " + method + " " + uri, e);
+
+            if (uri != null && uri.startsWith("/api/")) {
+                return json(500, "{\"ok\":false,\"error\":\"internal_error\",\"message\":\"" + escapeJson(msgOrDefault(e)) + "\"}");
+            }
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain",
+                    e.getMessage() == null ? "internal error" : e.getMessage());
+        }
+    }
+
+    private static String msgOrDefault(Exception e) {
+        String m = e.getMessage();
+        return (m == null || m.trim().isEmpty()) ? "internal error" : m;
+    }
+
+    private static String safePrefix(String s, int max) {
+        if (s == null) return "";
+        if (s.length() <= max) return s;
+        return s.substring(0, max) + "...(truncated)";
+    }
+
+    private static String readPostDataFromFiles(Map<String, String> files) throws Exception {
+        // NanoHTTPD puts the POST body in a temp file under key "postData" (common),
+        // or sometimes under "content" in certain forks.
+        String tmpPath = files.get("postData");
+        if (tmpPath == null) tmpPath = files.get("content");
+        if (tmpPath == null) return "";
+
+        File f = new File(tmpPath);
+        if (!f.exists()) return "";
+
+        FileInputStream fis = new FileInputStream(f);
+        try {
+            byte[] buf = readAll(fis);
+            return new String(buf, StandardCharsets.UTF_8);
+        } finally {
+            try { fis.close(); } catch (Exception ignored) {}
         }
     }
 
     // --------------------------
     // /api/gen  (Connect Wallet)
     // --------------------------
-    private Response handleApiGen(IHTTPSession session) throws Exception {
-        String body = readBody(session);
-
+    private Response handleApiGen(String body) throws Exception {
         String mnemonic = jsonGetString(body, "mnemonic", "");
         String passphrase = jsonGetString(body, "passphrase", "");
         String derivationPath = jsonGetString(body, "path", "m/44'/60'/0'");
@@ -126,7 +209,7 @@ public class AssetHttpServer extends NanoHTTPD {
         int masterFp = fingerprintOf(master);
         int parentFp = fingerprintOf(parent);
 
-        // Build CBOR map that matches your server.js structure:
+        // Build CBOR map matching server.js structure
         // top.set(3, publicKey)
         // top.set(4, chainCode)
         // top.set(6, originTagged(304))
@@ -165,19 +248,17 @@ public class AssetHttpServer extends NanoHTTPD {
 
     // --------------------------
     // /api/ur/part  (Sign - collector)
-    // For now we support single-part URs: ur:<type>/<bytewordsMinimal>
-    // This removes "API not implemented" and allows decode/inspection.
-    // Signing (/api/sign) will be implemented as the next step.
+    // Single-part URs: ur:<type>/<bytewordsMinimal>
+    // Signing (/api/sign) to be implemented later.
     // --------------------------
-    private Response handleApiUrPart(IHTTPSession session) throws Exception {
-        String body = readBody(session);
+    private Response handleApiUrPart(String body) throws Exception {
         String part = jsonGetString(body, "part", "").trim();
 
         if (part.isEmpty()) {
             return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
         }
 
-        // Normalize like your server.js (lowercase)
+        // Normalize like server.js (lowercase)
         String p = part.toLowerCase(Locale.ROOT);
 
         // Expect "ur:type/...."
@@ -194,7 +275,6 @@ public class AssetHttpServer extends NanoHTTPD {
             lastUrType = type;
             lastUrCbor = decoded;
 
-            // Your server.js checks for eth-sign-request; we preserve that behavior
             boolean ok = "eth-sign-request".equals(type);
 
             String json =
@@ -207,7 +287,7 @@ public class AssetHttpServer extends NanoHTTPD {
             return jsonOk(json);
 
         } catch (Exception ex) {
-            return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(ex.getMessage()) + "\"}");
+            return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(msgOrDefault(ex)) + "\"}");
         }
     }
 
@@ -241,16 +321,15 @@ public class AssetHttpServer extends NanoHTTPD {
         String mime = guessMime(assetPath);
 
         InputStream in = assets.open(ASSET_ROOT_DIR + assetPath);
-        // NanoHTTPD needs length; we buffer for simplicity (ok for typical web assets)
         byte[] data = readAll(in);
 
-        Response r = newFixedLengthResponse(Response.Status.OK, mime, new String(data, isTextMime(mime) ? StandardCharsets.UTF_8 : StandardCharsets.ISO_8859_1));
-        // If it's not text, return bytes properly
-        if (!isTextMime(mime)) {
-            r = newFixedLengthResponse(Response.Status.OK, mime, new java.io.ByteArrayInputStream(data), data.length);
+        Response r;
+        if (isTextMime(mime)) {
+            r = newFixedLengthResponse(Response.Status.OK, mime, new String(data, StandardCharsets.UTF_8));
+        } else {
+            r = newFixedLengthResponse(Response.Status.OK, mime, new ByteArrayInputStream(data), data.length);
         }
 
-        // Allow fetch()/XHR and iframe loads
         return cors(r);
     }
 
@@ -274,47 +353,38 @@ public class AssetHttpServer extends NanoHTTPD {
     }
 
     // --------------------------
-    // Helpers (JSON, HD derivation, CBOR origin, Bytewords, QR)
+    // Response helpers (CORS + JSON)
     // --------------------------
     private static Response cors(Response r) {
         r.addHeader("Access-Control-Allow-Origin", "*");
-        r.addHeader("Access-Control-Allow-Headers", "content-type");
-        r.addHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+        r.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        r.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        r.addHeader("Access-Control-Allow-Credentials", "true");
+        r.addHeader("Cache-Control", "no-store");
         return r;
     }
 
+    private static Response json(int status, String jsonBody) {
+        Response.Status st = Response.Status.lookup(status);
+        if (st == null) st = Response.Status.OK;
+        Response r = newFixedLengthResponse(st, "application/json; charset=utf-8", jsonBody);
+        return cors(r);
+    }
+
     private static Response jsonOk(String jsonBody) {
-        Response r = newFixedLengthResponse(Response.Status.OK, "application/json", jsonBody);
+        Response r = newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", jsonBody);
         return cors(r);
     }
 
     private static Response jsonError(Response.Status status, String message) {
         String body = "{\"ok\":false,\"error\":\"" + escapeJson(message) + "\"}";
-        Response r = newFixedLengthResponse(status, "application/json", body);
+        Response r = newFixedLengthResponse(status, "application/json; charset=utf-8", body);
         return cors(r);
     }
 
-    private static String readBody(IHTTPSession session) throws Exception {
-        java.util.Map<String, String> files = new java.util.HashMap<>();
-        session.parseBody(files);
-
-        // NanoHTTPD puts the raw POST body into a temp file under the "postData" key.
-         String tmpPath = files.get("postData");
-        if (tmpPath == null) {
-            // If no body, return empty
-            return "";
-        }
-
-        java.io.File f = new java.io.File(tmpPath);
-        java.io.FileInputStream fis = new java.io.FileInputStream(f);
-        try {
-            byte[] buf = readAll(fis);
-            return new String(buf, java.nio.charset.StandardCharsets.UTF_8);
-        } finally {
-            try { fis.close(); } catch (Exception ignored) {}
-        }
-    }
-
+    // --------------------------
+    // Helpers (body read, JSON extract, HD derivation, CBOR origin, Bytewords, QR)
+    // --------------------------
     private static byte[] readAll(InputStream in) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] buf = new byte[8192];
@@ -323,7 +393,9 @@ public class AssetHttpServer extends NanoHTTPD {
         return out.toByteArray();
     }
 
+    // NOTE: This is a minimal JSON getter (kept to avoid changing UI expectations).
     private static String jsonGetString(String json, String key, String def) {
+        if (json == null) return def;
         String pat = "\"" + key + "\"";
         int i = json.indexOf(pat);
         if (i < 0) return def;
@@ -337,6 +409,7 @@ public class AssetHttpServer extends NanoHTTPD {
     }
 
     private static int jsonGetInt(String json, String key, int def) {
+        if (json == null) return def;
         String pat = "\"" + key + "\"";
         int i = json.indexOf(pat);
         if (i < 0) return def;
@@ -351,7 +424,10 @@ public class AssetHttpServer extends NanoHTTPD {
 
     private static String escapeJson(String s) {
         if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 
     private static String parentPathOf(String path) {
@@ -463,7 +539,6 @@ public class AssetHttpServer extends NanoHTTPD {
         int n = minimal.length() / 2;
         byte[] out = new byte[n];
 
-        // Build reverse lookup for 2-char codes
         int[] rev = new int[26 * 26];
         Arrays.fill(rev, -1);
         for (int i = 0; i < 256; i++) {
