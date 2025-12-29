@@ -26,7 +26,7 @@
 <title>M&thinsp;E&thinsp;T&thinsp;A&thinsp;S&thinsp;T&thinsp;R&thinsp;E&thinsp;A&thinsp;M</title>
 <style>
     :root {
-      --sidebar-expanded: 240px;
+      --sidebar-expanded: 210px;
       --sidebar-collapsed: 63px;
       --bg: #0f172a;        /* slate-900-ish */
       --bg2: #111827;       /* slightly lighter */
@@ -42,21 +42,30 @@
       margin: 0;
       font-family: Arial, Helvetica, sans-serif;
       height: 100vh;
-      display: flex;
+      overflow: hidden;
       background: #f3f4f6;
     }
 
     /* Sidebar */
-    .sidebar {
-      width: var(--sidebar-expanded);
-      background: var(--bg);
-      color: var(--text);
-	  overflow-x: hidden;
-      display: flex;
-      flex-direction: column;
-      transition: width 180ms ease;
-      border-right: 1px solid rgba(255,255,255,0.06);
-    }
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+
+  width: var(--sidebar-expanded);
+  background: var(--bg);
+  color: var(--text);
+
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+
+  transition: width 180ms ease;
+  border-right: 1px solid rgba(255,255,255,0.06);
+
+  z-index: 1000;
+}
 
     .sidebar.collapsed {
       width: var(--sidebar-collapsed);
@@ -198,11 +207,15 @@
     }
 
     /* Content */
-    .content {
-      flex: 1;
-      height: 100vh;
-      background: #f3f4f6;
-    }
+.content {
+  position: relative;
+  height: 100vh;
+  width: calc(100vw - var(--sidebar-collapsed));
+  margin-left: var(--sidebar-collapsed);
+  background: #f3f4f6;
+  z-index: 0;
+}
+
 
     iframe {
       width: 100%;
@@ -681,7 +694,7 @@
       <path d="M7 10h2M11 10h2M15 10h2M7 13h2M11 13h2M15 13h2M7 16h10"
             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
     </svg>
-    <span class="label">Keyboard</span>
+    <span class="label">Virtual Keyboard</span>
   </button>
 <button class="footer-btn" type="button" onclick="clearAndClose()" data-tooltip="Clear & Close">
 <svg aria-hidden="true" class="icon" fill="none" viewBox="0 0 24 24">
@@ -703,7 +716,7 @@
   />
 </svg>
 
-    <span class="label">Exit</span>
+    <span class="label">Shut down</span>
   </button>
 </div>
 
