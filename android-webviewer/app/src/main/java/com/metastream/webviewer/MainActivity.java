@@ -362,7 +362,8 @@ private void injectVkVisibilityObserver() {
                 "  if (toggleBtn) toggleBtn.addEventListener('click', function(){ setTimeout(sync, 0); }, true);\n" +
                 "  sync();\n" +
                 "})();";
-        evaluateJsOnUiThread(js);
+        // Evaluate on UI thread to satisfy WebView threading requirements.
+        runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
 
     /**
