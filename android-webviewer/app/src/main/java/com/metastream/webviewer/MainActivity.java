@@ -10,6 +10,10 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
 import android.util.Log;
+import android.view.InputDevice;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -29,6 +33,7 @@ import androidx.core.content.ContextCompat;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -57,6 +62,10 @@ public class MainActivity extends AppCompatActivity {
     private String pendingBridgeMime;
     private byte[] pendingBridgeBytes;
 
+    // ---- System keyboard toggle (default ON) ----
+    private boolean systemKeyboardEnabled = true;
+    private long lastTwoFingerToggleMs = 0L;
+
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::onFileChooserResult);
 
@@ -69,9 +78,9 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(null); // disable state restore completely
         setContentView(R.layout.activity_main);
 
-        // Keep system keyboard from interfering; your in-page keyboard still works.
+        // Do NOT force-hide the system keyboard globally, because user may want it sometimes.
         getWindow().setSoftInputMode(
-                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         );
 
         // ---- start embedded offline HTTP server ----
@@ -86,14 +95,17 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webview);
         webView.setSaveEnabled(false);
 
-        // Most reliable focus settings for WebView + custom on-page keyboard
+        // Reliable focus settings for in-page virtual keyboards
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
         webView.setClickable(true);
         webView.setLongClickable(true);
         webView.requestFocus();
 
-        // JS bridge for blob/data downloads
+        // Start with system keyboard enabled (user can two-finger toggle OFF)
+        applySystemKeyboardSetting(systemKeyboardEnabled);
+
+        // JS bridge for blob/data downloads (no HTML changes needed)
         webView.addJavascriptInterface(new AndroidDownloadBridge(), "AndroidDownloadBridge");
 
         WebSettings s = webView.getSettings();
@@ -193,6 +205,32 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // ---- Two-finger tap toggles system keyboard ON/OFF ----
+        webView.setOnTouchListener((v, event) -> {
+            // Keep WebView focused for virtual keyboard use
+            if (event.getAction() == MotionEvent.ACTION_DOWN && !v.hasFocus()) {
+                v.requestFocus();
+            }
+
+            // Detect a two-finger tap (debounced)
+            if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() == 2) {
+                long now = System.currentTimeMillis();
+                if (now - lastTwoFingerToggleMs > 600) {
+                    lastTwoFingerToggleMs = now;
+                    systemKeyboardEnabled = !systemKeyboardEnabled;
+                    applySystemKeyboardSetting(systemKeyboardEnabled);
+
+                    if (!systemKeyboardEnabled) {
+                        hideSystemKeyboard();
+                        Toast.makeText(this, "System keyboard: OFF", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "System keyboard: ON", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+            return false; // allow normal web touch handling
+        });
+
         // ---- Download interception ----
         webView.setDownloadListener(new DownloadListener() {
             @Override
@@ -240,10 +278,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Most reliable solution:
-     * - Track last focused input/textarea/contenteditable
-     * - After any pointer down/click (including virtual keyboard buttons), re-focus it
-     * This prevents WebView from blurring the input when the user taps the on-page keyboard.
+     * Robust focus keeper:
+     * keeps last-focused input/textarea/contenteditable focused even when tapping
+     * other elements (e.g., on-page virtual keyboard buttons).
      */
     private void injectFocusKeeper() {
         String js =
@@ -267,7 +304,6 @@ public class MainActivity extends AppCompatActivity {
                 "      if (!document.contains(last)) return;\n" +
                 "      const a = document.activeElement;\n" +
                 "      if (a === last) return;\n" +
-                "      // Only refocus if focus moved away from an editable element\n" +
                 "      if (a && isEditable(a)) return;\n" +
                 "      last.focus({preventScroll:true});\n" +
                 "      if (typeof last.setSelectionRange === 'function' && last.value != null) {\n" +
@@ -283,6 +319,27 @@ public class MainActivity extends AppCompatActivity {
                 "})();";
 
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
+    }
+
+    private void applySystemKeyboardSetting(boolean enabled) {
+        // WebView.setShowSoftInputOnFocus exists on modern Android, reflection fallback for older.
+        try {
+            webView.setShowSoftInputOnFocus(enabled);
+        } catch (Throwable t) {
+            try {
+                Method m = WebView.class.getMethod("setShowSoftInputOnFocus", boolean.class);
+                m.invoke(webView, enabled);
+            } catch (Exception ignored) { }
+        }
+    }
+
+    private void hideSystemKeyboard() {
+        try {
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null && webView != null) {
+                imm.hideSoftInputFromWindow(webView.getWindowToken(), 0);
+            }
+        } catch (Exception ignored) { }
     }
 
     private void launchCreateDocument(String filename, String mime) {
