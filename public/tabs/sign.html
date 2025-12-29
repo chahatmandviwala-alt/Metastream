@@ -12,24 +12,32 @@
 
     <style>
       /* Define a CSS variable for consistency */
-      :root{
-        --max-width: 600px; /* keep yours */
-        --bg: #fafbfc;
-        --text: #0f172a;
-        --muted:#475569;
-        --border:#e2e8f0;
-        --panel:#ffffff;
-        --accent: #357CBA;
-        --danger:#ef4444;
-        --success:#22c55e;
-        --radius: 10px;
+:root{
+  --max-width: 600px; /* keep yours */
+  --bg: #fafbfc;
+  --text: #0f172a;
+  --muted:#475569;
+  --border:#e2e8f0;
+  --panel:#ffffff;
+  --accent: #357CBA;
+  --danger:#ef4444;
+  --success:#22c55e;
+  --radius: 10px;
 
-        /* Current layout had 2 columns with 12px gap. Approx. single block width was (max-width - gap)/2. */
-        --grid-gap: 12px;
-        --single-block-width: calc((var(--max-width) - var(--grid-gap)) / 2);
-        /* New requirement: single column width = 1.5x current single block width */
-        --single-column-width: calc(var(--single-block-width) * 1.7);
-      }
+  /* Current layout had 2 columns with 12px gap. Approx. single block width was (max-width - gap)/2. */
+  --grid-gap: 12px;
+  --single-block-width: calc((var(--max-width) - var(--grid-gap)) / 2);
+
+  /* Default for narrow screens (phone): do NOT apply the multiplier */
+  --single-column-width: calc(var(--single-block-width) * 1.12);
+}
+
+/* Only apply the 1.7x rule on wider screens (tablet/desktop) */
+@media (min-width: 768px){
+  :root{
+    --single-column-width: calc(var(--single-block-width) * 1.7);
+  }
+}
 
       #reader {
         width: 100%;
