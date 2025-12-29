@@ -297,7 +297,9 @@ public class MainActivity extends AppCompatActivity {
                 "(function(){\n" +
                 "  if (window.__ms_vkImeSuppressorInstalled) return;\n" +
                 "  window.__ms_vkImeSuppressorInstalled = true;\n" +
-                "  const SEL = 'input, textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]';\n" +
+                // Use a selector that avoids quote-escaping pitfalls in Java strings.
+                // [contenteditable] matches all contenteditable variants ("", "true", "plaintext-only", etc.).
+                "  const SEL = 'input, textarea, [contenteditable]';\n" +
                 "  const saved = new WeakMap();\n" +
                 "  function isEditable(el){\n" +
                 "    if (!el) return false;\n" +
