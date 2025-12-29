@@ -481,26 +481,26 @@ public class MainActivity extends AppCompatActivity {
                 .replace("\r", "\\r") + "'";
     }
 
-    @Override
-    public void onRequestPermissionsResult(
-            int requestCode,
-            String[] permissions,
-            String[] grantResults
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+@Override
+public void onRequestPermissionsResult(
+        int requestCode,
+        String[] permissions,
+        int[] grantResults
+) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        if (requestCode == REQ_CAMERA && pendingPermissionRequest != null) {
-            if (grantResults.length > 0 &&
-                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                pendingPermissionRequest.grant(
-                        pendingPermissionRequest.getResources()
-                );
-            } else {
-                pendingPermissionRequest.deny();
-            }
-            pendingPermissionRequest = null;
+    if (requestCode == REQ_CAMERA && pendingPermissionRequest != null) {
+        if (grantResults.length > 0 &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            pendingPermissionRequest.grant(
+                    pendingPermissionRequest.getResources()
+            );
+        } else {
+            pendingPermissionRequest.deny();
         }
+        pendingPermissionRequest = null;
     }
+}
 
     @Override
     protected void onDestroy() {
