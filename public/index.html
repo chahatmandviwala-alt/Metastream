@@ -594,6 +594,75 @@
       transform-origin: bottom right;
       will-change: transform;
     }
+	
+	/* Make VK fit on small screens */
+@media (max-width: 600px) {
+  .vk {
+    /* give yourself more usable space */
+    right: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
+
+    /* scale down further on narrow screens */
+    --vk-scale: 0.58;
+
+    /* IMPORTANT: keep the same translate+scale pattern you already use */
+    transform: translate(var(--vk-x), var(--vk-y)) scale(var(--vk-scale));
+  }
+
+  /* Make the keyboard body scroll if it would exceed the screen height */
+  .vk-body {
+    max-height: calc(100vh - 120px); /* header + margins allowance */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Slightly tighter keys so rows fit better */
+  .vk-key {
+    height: 34px;
+    min-width: 28px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+}
+
+/* Action keys: prevent text overflow and style icons nicely */
+.vk-key {
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* If a key contains an SVG icon, size it consistently */
+.vk-key svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+/* Give slightly larger icons to wide keys */
+.vk-key.wide svg,
+.vk-key.wider svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Optional: shrink action-key text if any remains */
+.vk-key[data-action] {
+  font-size: 11px;
+}
+
+.vk-key[data-action="enter"] svg{
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+
 
 </style>
 </head>
@@ -874,12 +943,29 @@
       <button class="vk-key" data-normal="0" data-shift=")" type="button">0</button>
       <button class="vk-key" data-normal="-" data-shift="_" type="button">-</button>
       <button class="vk-key" data-normal="=" data-shift="+" type="button">=</button>
-      <button class="vk-key wider" data-action="backspace" type="button">Backspace</button>
+      
+	  <button class="vk-key wider" data-action="backspace" type="button" aria-label="Backspace" title="Backspace">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <path d="M21 12H10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <path d="M10 7 5 12l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M21 7v10" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.0"/>
+  </svg>
+</button>
+
     </div>
 
     <div class="vk-row">
-      <button class="vk-key wide" data-action="tab" type="button">Tab</button>
-      <button class="vk-key" data-letter="q" type="button">q</button>
+      
+	 <button class="vk-key wide" data-action="tab" type="button" aria-label="Tab" title="Tab">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <path d="M4 12h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <path d="M12 8l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M20 6v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+</button>
+
+      
+	  <button class="vk-key" data-letter="q" type="button">q</button>
       <button class="vk-key" data-letter="w" type="button">w</button>
       <button class="vk-key" data-letter="e" type="button">e</button>
       <button class="vk-key" data-letter="r" type="button">r</button>
@@ -895,8 +981,16 @@
     </div>
 
     <div class="vk-row">
-      <button class="vk-key wider" data-action="caps" type="button">Caps</button>
-      <button class="vk-key" data-letter="a" type="button">a</button>
+      
+	  <button class="vk-key wider" data-action="caps" type="button" aria-label="Caps Lock" title="Caps Lock">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <path d="M12 4 5 11h14L12 4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M8 20h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+</button>
+
+      
+	  <button class="vk-key" data-letter="a" type="button">a</button>
       <button class="vk-key" data-letter="s" type="button">s</button>
       <button class="vk-key" data-letter="d" type="button">d</button>
       <button class="vk-key" data-letter="f" type="button">f</button>
@@ -907,12 +1001,32 @@
       <button class="vk-key" data-letter="l" type="button">l</button>
       <button class="vk-key" data-normal=";" data-shift=":" type="button">;</button>
       <button class="vk-key" data-normal="'" data-shift="&quot;" type="button">'</button>
-      <button class="vk-key wider" data-action="enter" type="button">Enter</button>
+<button class="vk-key wider" data-action="enter" type="button"
+        aria-label="Enter" title="Enter">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <!-- return arrow: corner down-left -->
+    <path d="M9 10l-4 4 4 4"
+          stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M20 4v6a4 4 0 0 1-4 4H5"
+          stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+
     </div>
 
     <div class="vk-row">
-      <button class="vk-key wider" data-action="shift" type="button">Shift</button>
-      <button class="vk-key" data-letter="z" type="button">z</button>
+      
+	  <button class="vk-key wider" data-action="shift" type="button" aria-label="Shift" title="Shift">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <path d="M12 4 6 10h4v6h4v-6h4l-6-6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+      
+	  <button class="vk-key" data-letter="z" type="button">z</button>
       <button class="vk-key" data-letter="x" type="button">x</button>
       <button class="vk-key" data-letter="c" type="button">c</button>
       <button class="vk-key" data-letter="v" type="button">v</button>
@@ -922,7 +1036,14 @@
       <button class="vk-key" data-normal="," data-shift="&lt;" type="button">,</button>
       <button class="vk-key" data-normal="." data-shift="&gt;" type="button">.</button>
       <button class="vk-key" data-normal="/" data-shift="?" type="button">/</button>
-      <button class="vk-key wider" data-action="shift" type="button">Shift</button>
+	  
+      <button class="vk-key wider" data-action="shift" type="button" aria-label="Shift" title="Shift">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <path d="M12 4 6 10h4v6h4v-6h4l-6-6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+	  
     </div>
 
     <div class="vk-row">
