@@ -337,52 +337,33 @@ webView.setOnTouchListener((v, event) -> {
  * This avoids reliance on vkToggleBtn only.
  */
 private void injectVkVisibilityObserver() {
-    String js =
-            "(function(){
-" +
-            "  if (window.__ms_vkVisibilityObserverInstalled) return;
-" +
-            "  window.__ms_vkVisibilityObserverInstalled = true;
-" +
-            "  window.__ms_vk_mode = !!window.__ms_vk_mode;
-" +
-            "  const vk = document.getElementById('vk');
-" +
-            "  if (!vk) return;
-" +
-            "  function sync(){
-" +
-            "    try {
-" +
-            "      const visible = !vk.classList.contains('hidden');
-" +
-            "      if (visible === window.__ms_vk_mode) return;
-" +
-            "      window.__ms_vk_mode = visible;
-" +
-            "      if (visible) AndroidImeBridge.vkOn(); else AndroidImeBridge.vkOff();
-" +
-            "    } catch(e) {}
-" +
-            "  }
-" +
-            "  // Initial sync in case VK is already visible
-" +
-            "  sync();
-" +
-            "  const mo = new MutationObserver(sync);
-" +
-            "  mo.observe(vk, { attributes: true, attributeFilter: ['class'] });
-" +
-            "  // Also hook the close button explicitly (in case class toggling changes in future)
-" +
-            "  const closeBtn = document.getElementById('vkCloseBtn');
-" +
-            "  if (closeBtn) closeBtn.addEventListener('click', function(){ setTimeout(sync, 0); }, true);
-" +
-            "})();";
-    runOnUiThread(() -> webView.evaluateJavascript(js, null));
-}
+        final String js =
+                "(function(){\n" +
+                "  if (window.__ms_vkVisibilityObserverInstalled) return;\n" +
+                "  window.__ms_vkVisibilityObserverInstalled = true;\n" +
+                "  window.__ms_vk_mode = !!window.__ms_vk_mode;\n" +
+                "  const vk = document.getElementById('vk');\n" +
+                "  if (!vk) return;\n" +
+                "  function sync(){\n" +
+                "    try {\n" +
+                "      const visible = !vk.classList.contains('hidden');\n" +
+                "      if (visible === window.__ms_vk_mode) return;\n" +
+                "      window.__ms_vk_mode = visible;\n" +
+                "      if (window.AndroidImeBridge) {\n" +
+                "        if (visible) AndroidImeBridge.vkOn(); else AndroidImeBridge.vkOff();\n" +
+                "      }\n" +
+                "    } catch(e) {}\n" +
+                "  }\n" +
+                "  const mo = new MutationObserver(function(){ sync(); });\n" +
+                "  mo.observe(vk, { attributes: true, attributeFilter: ['class','style'] });\n" +
+                "  const closeBtn = document.getElementById('vkCloseBtn');\n" +
+                "  if (closeBtn) closeBtn.addEventListener('click', function(){ setTimeout(sync, 0); }, true);\n" +
+                "  const toggleBtn = document.getElementById('vkToggleBtn');\n" +
+                "  if (toggleBtn) toggleBtn.addEventListener('click', function(){ setTimeout(sync, 0); }, true);\n" +
+                "  sync();\n" +
+                "})();";
+        evaluateJsOnUiThread(js);
+    }
 
     /**
      * While VK is open, re-apply vkOn() on focus/input, because some IMEs pop back up
