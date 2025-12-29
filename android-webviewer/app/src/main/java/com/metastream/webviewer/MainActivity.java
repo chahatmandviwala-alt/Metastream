@@ -60,6 +60,9 @@ public class MainActivity extends AppCompatActivity {
     private String pendingBridgeMime;
     private byte[] pendingBridgeBytes;
 
+    // ---- VK state (controlled by vkToggleBtn) ----
+    private volatile boolean vkMode = false;
+
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::onFileChooserResult);
 
@@ -114,7 +117,8 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 injectFocusKeeper();
-                injectLongPressKeyboardMode();
+                injectVkToggleHook();      // << key fix
+                injectVkImeEnforcer();     // << key fix
             }
         });
 
@@ -281,74 +285,60 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Requested behavior:
-     * - Normal tap on input: system keyboard allowed.
-     * - Long-press on input: block system keyboard + attempt to open in-page keyboard.
-     *
-     * No HTML changes required: we inject a long-press detector and then:
-     *   - AndroidImeBridge.blockImeOnce()
-     *   - tries to click a likely "open keyboard" UI element if present
+     * Hook vkToggleBtn clicks and update Android VK mode.
+     * This does not require changing your HTML/JS files.
      */
-    private void injectLongPressKeyboardMode() {
+    private void injectVkToggleHook() {
         String js =
                 "(function(){\n" +
-                "  if (window.__ms_longPressKbInstalled) return;\n" +
-                "  window.__ms_longPressKbInstalled = true;\n" +
-                "  let timer = null;\n" +
-                "  let longPressed = false;\n" +
-                "  function isEditable(el){\n" +
-                "    if (!el) return false;\n" +
-                "    const t = (el.tagName||'').toLowerCase();\n" +
-                "    return (t==='input' || t==='textarea' || el.isContentEditable);\n" +
-                "  }\n" +
-                "  function tryOpenVirtualKeyboard(){\n" +
-                "    // Heuristics (no HTML modification): try common ids/classes/text\n" +
-                "    const candidates = [\n" +
-                "      '#vk, #virtualKeyboard, #keyboard, #openKeyboard, #toggleKeyboard',\n" +
-                "      '.vk-open, .keyboard-open, .open-keyboard, .toggle-keyboard'\n" +
-                "    ];\n" +
-                "    for (const sel of candidates) {\n" +
-                "      const el = document.querySelector(sel);\n" +
-                "      if (el) { el.click(); return true; }\n" +
-                "    }\n" +
-                "    // Try a button/link with text containing 'keyboard'\n" +
-                "    const all = Array.from(document.querySelectorAll('button,a,div,span'));\n" +
-                "    for (const el of all) {\n" +
-                "      const txt = (el.textContent||'').trim().toLowerCase();\n" +
-                "      if (txt === 'keyboard' || txt.includes('virtual keyboard') || txt.includes('on-screen keyboard')) {\n" +
-                "        el.click(); return true;\n" +
-                "      }\n" +
-                "    }\n" +
+                "  if (window.__ms_vkToggleHookInstalled) return;\n" +
+                "  window.__ms_vkToggleHookInstalled = true;\n" +
+                "  function readVkOpen(){\n" +
+                "    const b = document.getElementById('vkToggleBtn');\n" +
+                "    if (!b) return false;\n" +
+                "    const ap = (b.getAttribute('aria-pressed')||'').toLowerCase();\n" +
+                "    if (ap === 'true') return true;\n" +
+                "    const ds = (b.getAttribute('data-state')||'').toLowerCase();\n" +
+                "    if (ds === 'on' || ds === 'open' || ds === 'true') return true;\n" +
+                "    const cls = (b.className||'').toLowerCase();\n" +
+                "    if (cls.includes('active') || cls.includes('on') || cls.includes('enabled')) return true;\n" +
+                "    // fallback global flag (if your code uses one)\n" +
+                "    if (window.vkOpen === true || window.__vk_open === true) return true;\n" +
                 "    return false;\n" +
                 "  }\n" +
-                "\n" +
-                "  document.addEventListener('touchstart', function(e){\n" +
-                "    longPressed = false;\n" +
-                "    const t = e.target;\n" +
-                "    if (!isEditable(t)) return;\n" +
-                "    clearTimeout(timer);\n" +
-                "    timer = setTimeout(function(){\n" +
-                "      longPressed = true;\n" +
-                "      AndroidImeBridge.blockImeOnce();\n" +
-                "      setTimeout(function(){ tryOpenVirtualKeyboard(); }, 0);\n" +
-                "    }, 450);\n" +
+                "  function sync(){\n" +
+                "    try {\n" +
+                "      if (readVkOpen()) AndroidImeBridge.vkOn();\n" +
+                "      else AndroidImeBridge.vkOff();\n" +
+                "    } catch(e) {}\n" +
+                "  }\n" +
+                "  const btn = document.getElementById('vkToggleBtn');\n" +
+                "  if (!btn) return;\n" +
+                "  btn.addEventListener('click', function(){ setTimeout(sync, 0); }, true);\n" +
+                "  setTimeout(sync, 0);\n" +
+                "})();";
+        runOnUiThread(() -> webView.evaluateJavascript(js, null));
+    }
+
+    /**
+     * While VK mode is ON, aggressively prevent the IME from re-opening.
+     * Some keyboards/ROMs try to show the IME again when the input value changes.
+     * This enforcer keeps it off while VK is enabled.
+     */
+    private void injectVkImeEnforcer() {
+        String js =
+                "(function(){\n" +
+                "  if (window.__ms_vkImeEnforcerInstalled) return;\n" +
+                "  window.__ms_vkImeEnforcerInstalled = true;\n" +
+                "  // When VK is ON, any focusin should immediately re-hide the IME\n" +
+                "  document.addEventListener('focusin', function(){\n" +
+                "    try { if (window.__ms_vk_mode === true) AndroidImeBridge.vkOn(); } catch(e) {}\n" +
                 "  }, true);\n" +
-                "\n" +
-                "  document.addEventListener('touchend', function(){ clearTimeout(timer); }, true);\n" +
-                "  document.addEventListener('touchcancel', function(){ clearTimeout(timer); }, true);\n" +
-                "\n" +
-                "  // Normal focus: allow system keyboard unless we just long-pressed\n" +
-                "  document.addEventListener('focusin', function(e){\n" +
-                "    if (!isEditable(e.target)) return;\n" +
-                "    if (longPressed) {\n" +
-                "      // Keep IME blocked for this interaction\n" +
-                "      longPressed = false;\n" +
-                "      return;\n" +
-                "    }\n" +
-                "    AndroidImeBridge.allowIme();\n" +
+                "  // Also on input events (some IMEs pop on value change)\n" +
+                "  document.addEventListener('input', function(){\n" +
+                "    try { if (window.__ms_vk_mode === true) AndroidImeBridge.vkOn(); } catch(e) {}\n" +
                 "  }, true);\n" +
                 "})();";
-
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
 
@@ -360,7 +350,7 @@ public class MainActivity extends AppCompatActivity {
             Method m = WebView.class.getMethod("setShowSoftInputOnFocus", boolean.class);
             m.invoke(webView, enabled);
         } catch (Throwable ignored) {
-            // Some devices/APIs may not support it; best-effort only.
+            // Some devices/APIs may not support it; we still hide IME proactively.
         }
     }
 
@@ -375,18 +365,25 @@ public class MainActivity extends AppCompatActivity {
 
     private final class AndroidImeBridge {
         @JavascriptInterface
-        public void blockImeOnce() {
+        public void vkOn() {
+            vkMode = true;
             runOnUiThread(() -> {
-                // Disable IME popping up on focus and hide it immediately.
+                // Mark state in JS too (so the enforcer can check it)
+                webView.evaluateJavascript("window.__ms_vk_mode=true;", null);
+
+                // Block system IME + close it immediately
                 setShowSoftInputOnFocusCompat(false);
                 hideImeNow();
             });
         }
 
         @JavascriptInterface
-        public void allowIme() {
+        public void vkOff() {
+            vkMode = false;
             runOnUiThread(() -> {
-                // Re-enable IME for normal taps
+                webView.evaluateJavascript("window.__ms_vk_mode=false;", null);
+
+                // Restore system IME behavior
                 setShowSoftInputOnFocusCompat(true);
             });
         }
@@ -600,8 +597,8 @@ public class MainActivity extends AppCompatActivity {
             int idx = lower.indexOf("filename=");
             if (idx >= 0) {
                 String v = cd.substring(idx + "filename=".length()).trim();
-                if (v.startsWith("\"") && v.endsWith("\"") && v.length() >= 2) v = v.substring(1, v.length() - 1);
-                v = v.replaceAll("[\\\\/:*?\"<>|]+", "_");
+                if (v.startsWith(\"\\\"\") && v.endsWith(\"\\\"\") && v.length() >= 2) v = v.substring(1, v.length() - 1);
+                v = v.replaceAll(\"[\\\\\\\\/:*?\\\"<>|]+\", \"_\");
                 if (!v.isEmpty()) return v;
             }
         }
@@ -610,29 +607,29 @@ public class MainActivity extends AppCompatActivity {
             Uri u = Uri.parse(url);
             String last = u.getLastPathSegment();
             if (last != null && !last.trim().isEmpty()) {
-                last = last.replaceAll("[\\\\/:*?\"<>|]+", "_");
+                last = last.replaceAll(\"[\\\\\\\\/:*?\\\"<>|]+\", \"_\");
                 return last;
             }
         } catch (Exception ignored) {}
 
-        String ext = "";
+        String ext = \"\";
         if (mime != null) {
             String m = mime.toLowerCase();
-            if (m.contains("json")) ext = ".json";
-            else if (m.contains("png")) ext = ".png";
-            else if (m.contains("pdf")) ext = ".pdf";
-            else if (m.contains("text")) ext = ".txt";
+            if (m.contains(\"json\")) ext = \".json\";
+            else if (m.contains(\"png\")) ext = \".png\";
+            else if (m.contains(\"pdf\")) ext = \".pdf\";
+            else if (m.contains(\"text\")) ext = \".txt\";
         }
-        return "download" + ext;
+        return \"download\" + ext;
     }
 
     private static String jsString(String s) {
-        if (s == null) return "''";
-        return "'" + s
-                .replace("\\", "\\\\")
-                .replace("'", "\\'")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r") + "'";
+        if (s == null) return \"''\";
+        return \"'\" + s
+                .replace(\"\\\\\", \"\\\\\\\\\")
+                .replace(\"'\", \"\\\\'\")
+                .replace(\"\\n\", \"\\\\n\")
+                .replace(\"\\r\", \"\\\\r\") + \"'\";
     }
 
     @Override
