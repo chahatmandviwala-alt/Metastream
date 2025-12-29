@@ -60,9 +60,6 @@ public class MainActivity extends AppCompatActivity {
     private String pendingBridgeMime;
     private byte[] pendingBridgeBytes;
 
-    // ---- VK state (controlled by vkToggleBtn) ----
-    private volatile boolean vkMode = false;
-
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::onFileChooserResult);
 
@@ -117,8 +114,8 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 injectFocusKeeper();
-                injectVkToggleHook();      // << key fix
-                injectVkImeEnforcer();     // << key fix
+                injectVkToggleHook();      // vkToggleBtn click => vkOn/vkOff
+                injectVkImeEnforcer();     // while VK open => keep IME hidden
             }
         });
 
@@ -285,59 +282,43 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Hook vkToggleBtn clicks and update Android VK mode.
-     * This does not require changing your HTML/JS files.
+     * Hook vkToggleBtn. We do NOT depend on aria/class state.
+     * We treat each click as a toggle, and store state in window.__ms_vk_mode.
      */
     private void injectVkToggleHook() {
         String js =
                 "(function(){\n" +
                 "  if (window.__ms_vkToggleHookInstalled) return;\n" +
                 "  window.__ms_vkToggleHookInstalled = true;\n" +
-                "  function readVkOpen(){\n" +
-                "    const b = document.getElementById('vkToggleBtn');\n" +
-                "    if (!b) return false;\n" +
-                "    const ap = (b.getAttribute('aria-pressed')||'').toLowerCase();\n" +
-                "    if (ap === 'true') return true;\n" +
-                "    const ds = (b.getAttribute('data-state')||'').toLowerCase();\n" +
-                "    if (ds === 'on' || ds === 'open' || ds === 'true') return true;\n" +
-                "    const cls = (b.className||'').toLowerCase();\n" +
-                "    if (cls.includes('active') || cls.includes('on') || cls.includes('enabled')) return true;\n" +
-                "    // fallback global flag (if your code uses one)\n" +
-                "    if (window.vkOpen === true || window.__vk_open === true) return true;\n" +
-                "    return false;\n" +
-                "  }\n" +
-                "  function sync(){\n" +
-                "    try {\n" +
-                "      if (readVkOpen()) AndroidImeBridge.vkOn();\n" +
-                "      else AndroidImeBridge.vkOff();\n" +
-                "    } catch(e) {}\n" +
-                "  }\n" +
+                "  window.__ms_vk_mode = !!window.__ms_vk_mode;\n" +
                 "  const btn = document.getElementById('vkToggleBtn');\n" +
                 "  if (!btn) return;\n" +
-                "  btn.addEventListener('click', function(){ setTimeout(sync, 0); }, true);\n" +
-                "  setTimeout(sync, 0);\n" +
+                "  btn.addEventListener('click', function(){\n" +
+                "    // Toggle our state first (most reliable)\n" +
+                "    window.__ms_vk_mode = !window.__ms_vk_mode;\n" +
+                "    try {\n" +
+                "      if (window.__ms_vk_mode) AndroidImeBridge.vkOn();\n" +
+                "      else AndroidImeBridge.vkOff();\n" +
+                "    } catch(e) {}\n" +
+                "  }, true);\n" +
                 "})();";
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
 
     /**
-     * While VK mode is ON, aggressively prevent the IME from re-opening.
-     * Some keyboards/ROMs try to show the IME again when the input value changes.
-     * This enforcer keeps it off while VK is enabled.
+     * While VK is open, re-apply vkOn() on focus/input, because some IMEs pop back up
+     * when the input value changes (exactly the behavior you described).
      */
     private void injectVkImeEnforcer() {
         String js =
                 "(function(){\n" +
                 "  if (window.__ms_vkImeEnforcerInstalled) return;\n" +
                 "  window.__ms_vkImeEnforcerInstalled = true;\n" +
-                "  // When VK is ON, any focusin should immediately re-hide the IME\n" +
-                "  document.addEventListener('focusin', function(){\n" +
-                "    try { if (window.__ms_vk_mode === true) AndroidImeBridge.vkOn(); } catch(e) {}\n" +
-                "  }, true);\n" +
-                "  // Also on input events (some IMEs pop on value change)\n" +
-                "  document.addEventListener('input', function(){\n" +
-                "    try { if (window.__ms_vk_mode === true) AndroidImeBridge.vkOn(); } catch(e) {}\n" +
-                "  }, true);\n" +
+                "  function enforce(){\n" +
+                "    try { if (window.__ms_vk_mode) AndroidImeBridge.vkOn(); } catch(e) {}\n" +
+                "  }\n" +
+                "  document.addEventListener('focusin', enforce, true);\n" +
+                "  document.addEventListener('input', enforce, true);\n" +
                 "})();";
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
@@ -366,12 +347,8 @@ public class MainActivity extends AppCompatActivity {
     private final class AndroidImeBridge {
         @JavascriptInterface
         public void vkOn() {
-            vkMode = true;
             runOnUiThread(() -> {
-                // Mark state in JS too (so the enforcer can check it)
-                webView.evaluateJavascript("window.__ms_vk_mode=true;", null);
-
-                // Block system IME + close it immediately
+                // Block IME and close it immediately
                 setShowSoftInputOnFocusCompat(false);
                 hideImeNow();
             });
@@ -379,11 +356,8 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void vkOff() {
-            vkMode = false;
             runOnUiThread(() -> {
-                webView.evaluateJavascript("window.__ms_vk_mode=false;", null);
-
-                // Restore system IME behavior
+                // Restore IME behavior
                 setShowSoftInputOnFocusCompat(true);
             });
         }
@@ -597,8 +571,10 @@ public class MainActivity extends AppCompatActivity {
             int idx = lower.indexOf("filename=");
             if (idx >= 0) {
                 String v = cd.substring(idx + "filename=".length()).trim();
-                if (v.startsWith(\"\\\"\") && v.endsWith(\"\\\"\") && v.length() >= 2) v = v.substring(1, v.length() - 1);
-                v = v.replaceAll(\"[\\\\\\\\/:*?\\\"<>|]+\", \"_\");
+                if (v.startsWith("\"") && v.endsWith("\"") && v.length() >= 2) {
+                    v = v.substring(1, v.length() - 1);
+                }
+                v = v.replaceAll("[\\\\/:*?\"<>|]+", "_");
                 if (!v.isEmpty()) return v;
             }
         }
@@ -607,29 +583,29 @@ public class MainActivity extends AppCompatActivity {
             Uri u = Uri.parse(url);
             String last = u.getLastPathSegment();
             if (last != null && !last.trim().isEmpty()) {
-                last = last.replaceAll(\"[\\\\\\\\/:*?\\\"<>|]+\", \"_\");
+                last = last.replaceAll("[\\\\/:*?\"<>|]+", "_");
                 return last;
             }
         } catch (Exception ignored) {}
 
-        String ext = \"\";
+        String ext = "";
         if (mime != null) {
             String m = mime.toLowerCase();
-            if (m.contains(\"json\")) ext = \".json\";
-            else if (m.contains(\"png\")) ext = \".png\";
-            else if (m.contains(\"pdf\")) ext = \".pdf\";
-            else if (m.contains(\"text\")) ext = \".txt\";
+            if (m.contains("json")) ext = ".json";
+            else if (m.contains("png")) ext = ".png";
+            else if (m.contains("pdf")) ext = ".pdf";
+            else if (m.contains("text")) ext = ".txt";
         }
-        return \"download\" + ext;
+        return "download" + ext;
     }
 
     private static String jsString(String s) {
-        if (s == null) return \"''\";
-        return \"'\" + s
-                .replace(\"\\\\\", \"\\\\\\\\\")
-                .replace(\"'\", \"\\\\'\")
-                .replace(\"\\n\", \"\\\\n\")
-                .replace(\"\\r\", \"\\\\r\") + \"'\";
+        if (s == null) return "''";
+        return "'" + s
+                .replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r") + "'";
     }
 
     @Override
