@@ -10,9 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
 import android.util.Log;
-import android.view.InputDevice;
 import android.view.MotionEvent;
-import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
@@ -62,10 +60,6 @@ public class MainActivity extends AppCompatActivity {
     private String pendingBridgeMime;
     private byte[] pendingBridgeBytes;
 
-    // ---- System keyboard toggle (default ON) ----
-    private boolean systemKeyboardEnabled = true;
-    private long lastTwoFingerToggleMs = 0L;
-
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::onFileChooserResult);
 
@@ -78,7 +72,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(null); // disable state restore completely
         setContentView(R.layout.activity_main);
 
-        // Do NOT force-hide the system keyboard globally, because user may want it sometimes.
         getWindow().setSoftInputMode(
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         );
@@ -95,18 +88,16 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webview);
         webView.setSaveEnabled(false);
 
-        // Reliable focus settings for in-page virtual keyboards
+        // Stable focus behavior for in-page keyboards
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
         webView.setClickable(true);
         webView.setLongClickable(true);
         webView.requestFocus();
 
-        // Start with system keyboard enabled (user can two-finger toggle OFF)
-        applySystemKeyboardSetting(systemKeyboardEnabled);
-
-        // JS bridge for blob/data downloads (no HTML changes needed)
+        // JS bridges
         webView.addJavascriptInterface(new AndroidDownloadBridge(), "AndroidDownloadBridge");
+        webView.addJavascriptInterface(new AndroidImeBridge(), "AndroidImeBridge");
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -123,6 +114,7 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 injectFocusKeeper();
+                injectLongPressKeyboardMode();
             }
         });
 
@@ -130,19 +122,15 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public boolean onConsoleMessage(android.webkit.ConsoleMessage msg) {
-                Log.e(
-                        "WEBVIEW_CONSOLE",
-                        msg.message() + " (" + msg.sourceId() + ":" + msg.lineNumber() + ")"
-                );
+                Log.e("WEBVIEW_CONSOLE",
+                        msg.message() + " (" + msg.sourceId() + ":" + msg.lineNumber() + ")");
                 return true;
             }
 
-            // ---- Camera / media permission for getUserMedia() ----
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> {
                     boolean needsCamera = false;
-
                     for (String r : request.getResources()) {
                         if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)) {
                             needsCamera = true;
@@ -168,7 +156,6 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
 
-            // ---- File upload support (<input type="file">) ----
             @Override
             public boolean onShowFileChooser(
                     WebView webView,
@@ -205,33 +192,15 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // ---- Two-finger tap toggles system keyboard ON/OFF ----
+        // Keep WebView focused on touch (helps with in-page keyboard)
         webView.setOnTouchListener((v, event) -> {
-            // Keep WebView focused for virtual keyboard use
             if (event.getAction() == MotionEvent.ACTION_DOWN && !v.hasFocus()) {
                 v.requestFocus();
             }
-
-            // Detect a two-finger tap (debounced)
-            if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() == 2) {
-                long now = System.currentTimeMillis();
-                if (now - lastTwoFingerToggleMs > 600) {
-                    lastTwoFingerToggleMs = now;
-                    systemKeyboardEnabled = !systemKeyboardEnabled;
-                    applySystemKeyboardSetting(systemKeyboardEnabled);
-
-                    if (!systemKeyboardEnabled) {
-                        hideSystemKeyboard();
-                        Toast.makeText(this, "System keyboard: OFF", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(this, "System keyboard: ON", Toast.LENGTH_SHORT).show();
-                    }
-                }
-            }
-            return false; // allow normal web touch handling
+            return false;
         });
 
-        // ---- Download interception ----
+        // Downloads
         webView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(
@@ -268,19 +237,16 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
 
-                Log.e(TAG, "Download unsupported URL scheme: " + url);
                 Toast.makeText(MainActivity.this, "Download not supported for this link type.", Toast.LENGTH_LONG).show();
             }
         });
 
-        // ---- ALWAYS load via localhost so /api/* works offline ----
+        // Load offline UI
         webView.loadUrl("http://127.0.0.1:" + PORT + "/");
     }
 
     /**
-     * Robust focus keeper:
-     * keeps last-focused input/textarea/contenteditable focused even when tapping
-     * other elements (e.g., on-page virtual keyboard buttons).
+     * Focus keeper so clicking your in-page keyboard doesn't blur the input.
      */
     private void injectFocusKeeper() {
         String js =
@@ -291,9 +257,7 @@ public class MainActivity extends AppCompatActivity {
                 "  function isEditable(el){\n" +
                 "    if (!el) return false;\n" +
                 "    const t = (el.tagName||'').toLowerCase();\n" +
-                "    if (t === 'input' || t === 'textarea') return true;\n" +
-                "    if (el.isContentEditable) return true;\n" +
-                "    return false;\n" +
+                "    return (t==='input' || t==='textarea' || el.isContentEditable);\n" +
                 "  }\n" +
                 "  document.addEventListener('focusin', function(e){\n" +
                 "    if (isEditable(e.target)) last = e.target;\n" +
@@ -306,10 +270,6 @@ public class MainActivity extends AppCompatActivity {
                 "      if (a === last) return;\n" +
                 "      if (a && isEditable(a)) return;\n" +
                 "      last.focus({preventScroll:true});\n" +
-                "      if (typeof last.setSelectionRange === 'function' && last.value != null) {\n" +
-                "        const n = last.value.length;\n" +
-                "        last.setSelectionRange(n, n);\n" +
-                "      }\n" +
                 "    } catch (_) {}\n" +
                 "  }\n" +
                 "  document.addEventListener('pointerdown', function(){ setTimeout(refocus, 0); }, true);\n" +
@@ -317,29 +277,119 @@ public class MainActivity extends AppCompatActivity {
                 "  document.addEventListener('touchstart', function(){ setTimeout(refocus, 0); }, true);\n" +
                 "  document.addEventListener('click',      function(){ setTimeout(refocus, 0); }, true);\n" +
                 "})();";
+        runOnUiThread(() -> webView.evaluateJavascript(js, null));
+    }
+
+    /**
+     * Requested behavior:
+     * - Normal tap on input: system keyboard allowed.
+     * - Long-press on input: block system keyboard + attempt to open in-page keyboard.
+     *
+     * No HTML changes required: we inject a long-press detector and then:
+     *   - AndroidImeBridge.blockImeOnce()
+     *   - tries to click a likely "open keyboard" UI element if present
+     */
+    private void injectLongPressKeyboardMode() {
+        String js =
+                "(function(){\n" +
+                "  if (window.__ms_longPressKbInstalled) return;\n" +
+                "  window.__ms_longPressKbInstalled = true;\n" +
+                "  let timer = null;\n" +
+                "  let longPressed = false;\n" +
+                "  function isEditable(el){\n" +
+                "    if (!el) return false;\n" +
+                "    const t = (el.tagName||'').toLowerCase();\n" +
+                "    return (t==='input' || t==='textarea' || el.isContentEditable);\n" +
+                "  }\n" +
+                "  function tryOpenVirtualKeyboard(){\n" +
+                "    // Heuristics (no HTML modification): try common ids/classes/text\n" +
+                "    const candidates = [\n" +
+                "      '#vk, #virtualKeyboard, #keyboard, #openKeyboard, #toggleKeyboard',\n" +
+                "      '.vk-open, .keyboard-open, .open-keyboard, .toggle-keyboard'\n" +
+                "    ];\n" +
+                "    for (const sel of candidates) {\n" +
+                "      const el = document.querySelector(sel);\n" +
+                "      if (el) { el.click(); return true; }\n" +
+                "    }\n" +
+                "    // Try a button/link with text containing 'keyboard'\n" +
+                "    const all = Array.from(document.querySelectorAll('button,a,div,span'));\n" +
+                "    for (const el of all) {\n" +
+                "      const txt = (el.textContent||'').trim().toLowerCase();\n" +
+                "      if (txt === 'keyboard' || txt.includes('virtual keyboard') || txt.includes('on-screen keyboard')) {\n" +
+                "        el.click(); return true;\n" +
+                "      }\n" +
+                "    }\n" +
+                "    return false;\n" +
+                "  }\n" +
+                "\n" +
+                "  document.addEventListener('touchstart', function(e){\n" +
+                "    longPressed = false;\n" +
+                "    const t = e.target;\n" +
+                "    if (!isEditable(t)) return;\n" +
+                "    clearTimeout(timer);\n" +
+                "    timer = setTimeout(function(){\n" +
+                "      longPressed = true;\n" +
+                "      AndroidImeBridge.blockImeOnce();\n" +
+                "      setTimeout(function(){ tryOpenVirtualKeyboard(); }, 0);\n" +
+                "    }, 450);\n" +
+                "  }, true);\n" +
+                "\n" +
+                "  document.addEventListener('touchend', function(){ clearTimeout(timer); }, true);\n" +
+                "  document.addEventListener('touchcancel', function(){ clearTimeout(timer); }, true);\n" +
+                "\n" +
+                "  // Normal focus: allow system keyboard unless we just long-pressed\n" +
+                "  document.addEventListener('focusin', function(e){\n" +
+                "    if (!isEditable(e.target)) return;\n" +
+                "    if (longPressed) {\n" +
+                "      // Keep IME blocked for this interaction\n" +
+                "      longPressed = false;\n" +
+                "      return;\n" +
+                "    }\n" +
+                "    AndroidImeBridge.allowIme();\n" +
+                "  }, true);\n" +
+                "})();";
 
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
 
-    private void applySystemKeyboardSetting(boolean enabled) {
-        // WebView.setShowSoftInputOnFocus exists on modern Android, reflection fallback for older.
+    /**
+     * IME control via reflection ONLY (no compile-time dependency).
+     */
+    private void setShowSoftInputOnFocusCompat(boolean enabled) {
         try {
-            webView.setShowSoftInputOnFocus(enabled);
-        } catch (Throwable t) {
-            try {
-                Method m = WebView.class.getMethod("setShowSoftInputOnFocus", boolean.class);
-                m.invoke(webView, enabled);
-            } catch (Exception ignored) { }
+            Method m = WebView.class.getMethod("setShowSoftInputOnFocus", boolean.class);
+            m.invoke(webView, enabled);
+        } catch (Throwable ignored) {
+            // Some devices/APIs may not support it; best-effort only.
         }
     }
 
-    private void hideSystemKeyboard() {
+    private void hideImeNow() {
         try {
             InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
             if (imm != null && webView != null) {
                 imm.hideSoftInputFromWindow(webView.getWindowToken(), 0);
             }
-        } catch (Exception ignored) { }
+        } catch (Throwable ignored) {}
+    }
+
+    private final class AndroidImeBridge {
+        @JavascriptInterface
+        public void blockImeOnce() {
+            runOnUiThread(() -> {
+                // Disable IME popping up on focus and hide it immediately.
+                setShowSoftInputOnFocusCompat(false);
+                hideImeNow();
+            });
+        }
+
+        @JavascriptInterface
+        public void allowIme() {
+            runOnUiThread(() -> {
+                // Re-enable IME for normal taps
+                setShowSoftInputOnFocusCompat(true);
+            });
+        }
     }
 
     private void launchCreateDocument(String filename, String mime) {
