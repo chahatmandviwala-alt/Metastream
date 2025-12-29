@@ -235,7 +235,7 @@ if (uri.startsWith("/api/")) {
         byte[] cborBytes = top.EncodeToBytes();
 
 // UR: crypto-hdkey + STANDARD bytewords (with CRC32) for wallet compatibility
-String urBody = bytewordsStandardWithCrc(cborBytes);
+String urBody = bytewordsMinimalWithCrc(cborBytes);
 String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
 
         // QR data URL
