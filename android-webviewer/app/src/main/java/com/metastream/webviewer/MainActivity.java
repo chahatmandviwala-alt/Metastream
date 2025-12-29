@@ -114,7 +114,7 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 injectFocusKeeper();
-                injectVkImeSuppressor(); // vkToggleBtn click => suppress/restore system IME via inputmode="none"
+                injectVkImeSuppressor();   // vkToggleBtn click => suppress/restore system IME via inputmode="none"
             }
         });
 
@@ -244,7 +244,143 @@ public class MainActivity extends AppCompatActivity {
         // Load offline UI
         webView.loadUrl("http://127.0.0.1:" + PORT + "/");
     }
-        /**
+
+    /**
+     * Focus keeper so clicking your in-page keyboard doesn't blur the input.
+     */
+    private void injectFocusKeeper() {
+        String js =
+                "(function(){\n" +
+                "  if (window.__ms_focusKeeperInstalled) return;\n" +
+                "  window.__ms_focusKeeperInstalled = true;\n" +
+                "  let last = null;\n" +
+                "  function isEditable(el){\n" +
+                "    if (!el) return false;\n" +
+                "    const t = (el.tagName||'').toLowerCase();\n" +
+                "    return (t==='input' || t==='textarea' || el.isContentEditable);\n" +
+                "  }\n" +
+                "  document.addEventListener('focusin', function(e){\n" +
+                "    if (isEditable(e.target)) last = e.target;\n" +
+                "  }, true);\n" +
+                "  function refocus(){\n" +
+                "    try {\n" +
+                "      if (!last) return;\n" +
+                "      if (!document.contains(last)) return;\n" +
+                "      const a = document.activeElement;\n" +
+                "      if (a === last) return;\n" +
+                "      if (a && isEditable(a)) return;\n" +
+                "      last.focus({preventScroll:true});\n" +
+                "    } catch (_) {}\n" +
+                "  }\n" +
+                "  document.addEventListener('pointerdown', function(){ setTimeout(refocus, 0); }, true);\n" +
+                "  document.addEventListener('mousedown',  function(){ setTimeout(refocus, 0); }, true);\n" +
+                "  document.addEventListener('touchstart', function(){ setTimeout(refocus, 0); }, true);\n" +
+                "  document.addEventListener('click',      function(){ setTimeout(refocus, 0); }, true);\n" +
+                "})();";
+        runOnUiThread(() -> webView.evaluateJavascript(js, null));
+    }
+
+    
+    /**
+     * Robust VK/IME suppressor.
+     *
+     * - Treats each click on #vkToggleBtn as a toggle.
+     * - When VK is ON: sets inputmode="none" (and disables autocomplete/correct/capitalize/spellcheck),
+     *   with enforcement on focus/input and on DOM mutations (for dynamically created inputs).
+     * - Restores original attributes when VK is OFF.
+     * - Calls AndroidImeBridge.vkOn()/vkOff() for native-side best-effort hide/block.
+     *
+     * No web source files are modified; this is injection-only.
+     */
+    private void injectVkImeSuppressor() {
+        String js =
+                "(function(){\n" +
+                "  if (window.__ms_vkImeSuppressorInstalled) return;\n" +
+                "  window.__ms_vkImeSuppressorInstalled = true;\n" +
+                "  const SEL = 'input, textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]';\n" +
+                "  const saved = new WeakMap();\n" +
+                "  function isEditable(el){\n" +
+                "    if (!el) return false;\n" +
+                "    const t = (el.tagName||'').toLowerCase();\n" +
+                "    return (t==='input' || t==='textarea' || el.isContentEditable);\n" +
+                "  }\n" +
+                "  function snapshot(el){\n" +
+                "    if (!el || saved.has(el)) return;\n" +
+                "    saved.set(el, {\n" +
+                "      inputmode: el.getAttribute('inputmode'),\n" +
+                "      autocomplete: el.getAttribute('autocomplete'),\n" +
+                "      autocorrect: el.getAttribute('autocorrect'),\n" +
+                "      autocapitalize: el.getAttribute('autocapitalize'),\n" +
+                "      spellcheck: el.getAttribute('spellcheck')\n" +
+                "    });\n" +
+                "  }\n" +
+                "  function applyTo(el){\n" +
+                "    if (!isEditable(el)) return;\n" +
+                "    snapshot(el);\n" +
+                "    el.setAttribute('inputmode','none');\n" +
+                "    el.setAttribute('autocomplete','off');\n" +
+                "    el.setAttribute('autocorrect','off');\n" +
+                "    el.setAttribute('autocapitalize','off');\n" +
+                "    el.setAttribute('spellcheck','false');\n" +
+                "  }\n" +
+                "  function restore(el){\n" +
+                "    if (!isEditable(el)) return;\n" +
+                "    const s = saved.get(el);\n" +
+                "    if (!s) { el.removeAttribute('inputmode'); return; }\n" +
+                "    if (s.inputmode == null) el.removeAttribute('inputmode'); else el.setAttribute('inputmode', s.inputmode);\n" +
+                "    if (s.autocomplete == null) el.removeAttribute('autocomplete'); else el.setAttribute('autocomplete', s.autocomplete);\n" +
+                "    if (s.autocorrect == null) el.removeAttribute('autocorrect'); else el.setAttribute('autocorrect', s.autocorrect);\n" +
+                "    if (s.autocapitalize == null) el.removeAttribute('autocapitalize'); else el.setAttribute('autocapitalize', s.autocapitalize);\n" +
+                "    if (s.spellcheck == null) el.removeAttribute('spellcheck'); else el.setAttribute('spellcheck', s.spellcheck);\n" +
+                "  }\n" +
+                "  function applyAll(){\n" +
+                "    document.querySelectorAll(SEL).forEach(applyTo);\n" +
+                "    const a = document.activeElement;\n" +
+                "    if (isEditable(a)) { try { a.blur(); a.focus({preventScroll:true}); } catch(e) { try { a.blur(); a.focus(); } catch(_){} } }\n" +
+                "  }\n" +
+                "  function restoreAll(){\n" +
+                "    document.querySelectorAll(SEL).forEach(restore);\n" +
+                "    const a = document.activeElement;\n" +
+                "    if (isEditable(a)) { try { a.blur(); a.focus({preventScroll:true}); } catch(e) { try { a.blur(); a.focus(); } catch(_){} } }\n" +
+                "  }\n" +
+                "  function setMode(on){\n" +
+                "    window.__ms_vk_mode = !!on;\n" +
+                "    if (window.__ms_vk_mode) {\n" +
+                "      applyAll();\n" +
+                "      try { AndroidImeBridge.vkOn(); } catch(e) {}\n" +
+                "    } else {\n" +
+                "      restoreAll();\n" +
+                "      try { AndroidImeBridge.vkOff(); } catch(e) {}\n" +
+                "    }\n" +
+                "  }\n" +
+                "  // Hook button: treat each click as a toggle (does not depend on aria/class state).\n" +
+                "  const btn = document.getElementById('vkToggleBtn');\n" +
+                "  if (btn) {\n" +
+                "    btn.addEventListener('click', function(){ setMode(!window.__ms_vk_mode); }, true);\n" +
+                "  }\n" +
+                "  // Enforcement: some IMEs re-open on programmatic value changes while an input is focused.\n" +
+                "  function enforce(ev){\n" +
+                "    if (!window.__ms_vk_mode) return;\n" +
+                "    const t = ev && ev.target ? ev.target : document.activeElement;\n" +
+                "    if (isEditable(t)) applyTo(t);\n" +
+                "    try { AndroidImeBridge.vkOn(); } catch(e) {}\n" +
+                "  }\n" +
+                "  document.addEventListener('focusin', enforce, true);\n" +
+                "  document.addEventListener('beforeinput', enforce, true);\n" +
+                "  document.addEventListener('input', enforce, true);\n" +
+                "  // If inputs are created dynamically, ensure they are covered.\n" +
+                "  try {\n" +
+                "    const mo = new MutationObserver(function(){ if (window.__ms_vk_mode) applyAll(); });\n" +
+                "    mo.observe(document.documentElement || document.body, {subtree:true, childList:true, attributes:false});\n" +
+                "  } catch(e) {}\n" +
+                "  // Initialize stored flag if not present.\n" +
+                "  window.__ms_vk_mode = !!window.__ms_vk_mode;\n" +
+                "  if (window.__ms_vk_mode) setMode(true);\n" +
+                "})();";
+        runOnUiThread(() -> webView.evaluateJavascript(js, null));
+    }
+
+    /**
      * IME control via reflection ONLY (no compile-time dependency).
      */
     private void setShowSoftInputOnFocusCompat(boolean enabled) {
@@ -265,7 +401,36 @@ public class MainActivity extends AppCompatActivity {
         } catch (Throwable ignored) {}
     }
 
-private final 
+private final class AndroidImeBridge {
+    @JavascriptInterface
+    public void vkOn() {
+        runOnUiThread(() -> {
+            // Best-effort: prevent OSK from showing for focused fields while VK is active.
+            setShowSoftInputOnFocusCompat(false);
+
+            // Block IME at the WebView InputConnection layer (ImeBlockWebView).
+            webView.setImeBlocked(true);
+
+            // Close any already-open keyboard immediately.
+            hideImeNow();
+
+            // IMPORTANT: do NOT call restartInput() here; it can trigger alternating IME state caching
+            // (the odd/even behavior you observed). The web-layer inputmode="none" is the primary suppressor.
+        });
+    }
+
+    @JavascriptInterface
+    public void vkOff() {
+        runOnUiThread(() -> {
+            // Restore normal OSK behavior.
+            webView.setImeBlocked(false);
+            setShowSoftInputOnFocusCompat(true);
+
+            // Ensure the IME can attach cleanly on next focus.
+            restartImeNow();
+        });
+    }
+}
 
     private void restartImeNow() {
     try {
@@ -476,36 +641,6 @@ private final
             clearPendingBridgeDownload();
         }
     }
-
-class AndroidImeBridge {
-    @JavascriptInterface
-    public void vkOn() {
-        runOnUiThread(() -> {
-            // Best-effort: prevent OSK from showing for focused fields while VK is active.
-            setShowSoftInputOnFocusCompat(false);
-
-            // Block IME at the WebView InputConnection layer (ImeBlockWebView).
-            webView.setImeBlocked(true);
-
-            // Close any already-open keyboard immediately.
-            hideImeNow();
-        });
-    }
-
-    @JavascriptInterface
-    public void vkOff() {
-        runOnUiThread(() -> {
-            // Restore normal OSK behavior.
-            webView.setImeBlocked(false);
-            setShowSoftInputOnFocusCompat(true);
-
-            // Ensure the IME can attach cleanly on next focus.
-            restartImeNow();
-        });
-    }
-}
-
-
 
     private static String guessFilename(String url, String contentDisposition, String mime) {
         if (contentDisposition != null) {
