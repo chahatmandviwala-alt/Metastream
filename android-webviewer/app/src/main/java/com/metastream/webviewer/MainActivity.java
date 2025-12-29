@@ -497,6 +497,27 @@ public final class AndroidAppBridge {
     }
 }
 
+    // JS bridge used by injected Exit hook.
+    public final class AndroidAppBridge {
+        @JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(() -> {
+                try {
+                    // Close the task (best-effort).
+                    finishAffinity();
+
+                    // Deterministic termination (matches "force close" requirement).
+                    android.os.Process.killProcess(android.os.Process.myPid());
+                    System.exit(0);
+                } catch (Throwable t) {
+                    try { finish(); } catch (Throwable ignored) {}
+                }
+            });
+        }
+    }
+
+
+
     private void restartImeNow() {
     try {
         InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
