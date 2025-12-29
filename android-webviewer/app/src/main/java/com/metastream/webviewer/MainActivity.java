@@ -127,7 +127,8 @@ root.addView(focusSink, lp);
                 super.onPageFinished(view, url);
                 injectFocusKeeper();
                 injectVkToggleHook();      // vkToggleBtn click => vkOn/vkOff
-                injectVkImeEnforcer();     // while VK open => keep IME hidden
+                injectVkImeEnforcer();
+                injectVkVisibilityObserver(); // observe #vk hidden/visible (x close, esc, etc.)     // while VK open => keep IME hidden
             }
         });
 
@@ -328,6 +329,60 @@ webView.setOnTouchListener((v, event) -> {
                 "})();";
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
+
+/**
+ * Observe #vk visibility (class 'hidden') so that closing the VK via the (x) button,
+ * ESC key, or any other UI path still restores system keyboard behavior.
+ *
+ * This avoids reliance on vkToggleBtn only.
+ */
+private void injectVkVisibilityObserver() {
+    String js =
+            "(function(){
+" +
+            "  if (window.__ms_vkVisibilityObserverInstalled) return;
+" +
+            "  window.__ms_vkVisibilityObserverInstalled = true;
+" +
+            "  window.__ms_vk_mode = !!window.__ms_vk_mode;
+" +
+            "  const vk = document.getElementById('vk');
+" +
+            "  if (!vk) return;
+" +
+            "  function sync(){
+" +
+            "    try {
+" +
+            "      const visible = !vk.classList.contains('hidden');
+" +
+            "      if (visible === window.__ms_vk_mode) return;
+" +
+            "      window.__ms_vk_mode = visible;
+" +
+            "      if (visible) AndroidImeBridge.vkOn(); else AndroidImeBridge.vkOff();
+" +
+            "    } catch(e) {}
+" +
+            "  }
+" +
+            "  // Initial sync in case VK is already visible
+" +
+            "  sync();
+" +
+            "  const mo = new MutationObserver(sync);
+" +
+            "  mo.observe(vk, { attributes: true, attributeFilter: ['class'] });
+" +
+            "  // Also hook the close button explicitly (in case class toggling changes in future)
+" +
+            "  const closeBtn = document.getElementById('vkCloseBtn');
+" +
+            "  if (closeBtn) closeBtn.addEventListener('click', function(){ setTimeout(sync, 0); }, true);
+" +
+            "})();";
+    runOnUiThread(() -> webView.evaluateJavascript(js, null));
+}
 
     /**
      * While VK is open, re-apply vkOn() on focus/input, because some IMEs pop back up
