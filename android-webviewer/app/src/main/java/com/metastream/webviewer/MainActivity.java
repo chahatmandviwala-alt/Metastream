@@ -368,29 +368,47 @@ private void injectVkVisibilityObserver() {
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
 
-    private void installExitHook() {
+private void installExitHook() {
     final String js =
-        "(function(){\\n" +
-        "  if (window.__ms_exitHookInstalled) return;\\n" +
-        "  window.__ms_exitHookInstalled = true;\\n" +
-        "  function hook(){\\n" +
-        "    var btn = document.querySelector('button[onclick*=\"clearAndClose\"]');\\n" +
-        "    if (btn) {\\n" +
-        "      btn.addEventListener('click', function(e){\\n" +
-        "        try { e.preventDefault(); e.stopPropagation(); } catch(_) {}\\n" +
-        "        try { if (window.AndroidApp && AndroidApp.exitApp) AndroidApp.exitApp(); } catch(_) {}\\n" +
-        "        return false;\\n" +
-        "      }, true);\\n" +
-        "    }\\n" +
-        "    if (typeof window.clearAndClose === 'function') {\\n" +
-        "      window.clearAndClose = function(){\\n" +
-        "        try { if (window.AndroidApp && AndroidApp.exitApp) AndroidApp.exitApp(); } catch(_) {}\\n" +
-        "      };\\n" +
-        "    }\\n" +
-        "  }\\n" +
-        "  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook);\\n" +
-        "  else hook();\\n" +
-        "})();\\n";
+        "(function(){\n" +
+        "  if (window.__ms_exitHookInstalled) return;\n" +
+        "  window.__ms_exitHookInstalled = true;\n" +
+        "\n" +
+        "  function forceBind(){\n" +
+        "    // This matches your Exit button: onclick=\"clearAndClose()\"\n" +
+        "    var btn = document.querySelector('button[onclick=\"clearAndClose()\"], button[onclick*=\"clearAndClose\"]');\n" +
+        "    if (!btn) return false;\n" +
+        "\n" +
+        "    // 1) Remove/neutralize the inline handler so clearAndClose() cannot run\n" +
+        "    try { btn.removeAttribute('onclick'); } catch(e) {}\n" +
+        "\n" +
+        "    // 2) Replace with a direct Android call\n" +
+        "    btn.onclick = function(e){\n" +
+        "      try { e.preventDefault(); e.stopImmediatePropagation(); } catch(_) {}\n" +
+        "      try { if (window.AndroidApp && AndroidApp.exitApp) AndroidApp.exitApp(); } catch(_) {}\n" +
+        "      return false;\n" +
+        "    };\n" +
+        "\n" +
+        "    // 3) Belt-and-suspenders: if something else calls clearAndClose, hijack it\n" +
+        "    try {\n" +
+        "      window.clearAndClose = function(){\n" +
+        "        try { if (window.AndroidApp && AndroidApp.exitApp) AndroidApp.exitApp(); } catch(_) {}\n" +
+        "      };\n" +
+        "    } catch(e) {}\n" +
+        "\n" +
+        "    return true;\n" +
+        "  }\n" +
+        "\n" +
+        "  // Exit button is in the main DOM; bind now, and retry briefly if DOM isn't ready yet\n" +
+        "  if (!forceBind()) {\n" +
+        "    var n = 0;\n" +
+        "    var t = setInterval(function(){\n" +
+        "      n++;\n" +
+        "      if (forceBind() || n > 50) clearInterval(t); // ~5 seconds max\n" +
+        "    }, 100);\n" +
+        "  }\n" +
+        "})();\n";
+
     runOnUiThread(() -> webView.evaluateJavascript(js, null));
 }
 
