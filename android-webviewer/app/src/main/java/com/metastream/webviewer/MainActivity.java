@@ -8,8 +8,10 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Base64;
 import android.util.Log;
 import android.webkit.DownloadListener;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -45,10 +47,15 @@ public class MainActivity extends AppCompatActivity {
     // ---- File chooser support ----
     private ValueCallback<Uri[]> filePathCallback;
 
-    // ---- Download support ----
+    // ---- Download support (http/https) ----
     private String pendingDownloadUrl;
     private String pendingDownloadMime;
     private String pendingDownloadFilename;
+
+    // ---- Download support (blob/data via JS bridge) ----
+    private String pendingBridgeFilename;
+    private String pendingBridgeMime;
+    private byte[] pendingBridgeBytes;
 
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::onFileChooserResult);
@@ -56,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
     private final ActivityResultLauncher<Intent> createDocumentLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::onCreateDocumentResult);
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(null); // disable state restore completely
@@ -85,6 +92,9 @@ public class MainActivity extends AppCompatActivity {
         WebView.setWebContentsDebuggingEnabled(true);
 
         webView.setWebViewClient(new WebViewClient());
+
+        // JS bridge for blob/data downloads (no HTML changes needed)
+        webView.addJavascriptInterface(new AndroidDownloadBridge(), "AndroidDownloadBridge");
 
         webView.setWebChromeClient(new WebChromeClient() {
 
@@ -165,7 +175,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // ---- Download support ----
+        // ---- Download interception ----
         webView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(
@@ -175,38 +185,86 @@ public class MainActivity extends AppCompatActivity {
                     String mimetype,
                     long contentLength
             ) {
-                // WebView can trigger downloads for blob:, data:, etc. We only support http(s) URLs here.
-                if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) {
-                    Log.e(TAG, "Download unsupported URL scheme: " + url);
-                    Toast.makeText(MainActivity.this, "Download not supported for this link type.", Toast.LENGTH_LONG).show();
+                if (url == null) {
+                    Toast.makeText(MainActivity.this, "Download failed: empty URL", Toast.LENGTH_LONG).show();
                     return;
                 }
 
-                pendingDownloadUrl = url;
-                pendingDownloadMime = (mimetype == null || mimetype.trim().isEmpty())
+                String mt = (mimetype == null || mimetype.trim().isEmpty())
                         ? "application/octet-stream"
                         : mimetype;
 
-                pendingDownloadFilename = guessFilename(url, contentDisposition, pendingDownloadMime);
+                String filename = guessFilename(url, contentDisposition, mt);
 
-                // Ask user where to save (no storage permission needed)
-                Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType(pendingDownloadMime);
-                i.putExtra(Intent.EXTRA_TITLE, pendingDownloadFilename);
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    // Normal URL download
+                    pendingDownloadUrl = url;
+                    pendingDownloadMime = mt;
+                    pendingDownloadFilename = filename;
 
-                try {
-                    createDocumentLauncher.launch(i);
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to launch save dialog", e);
-                    Toast.makeText(MainActivity.this, "Could not open save dialog.", Toast.LENGTH_LONG).show();
-                    clearPendingDownload();
+                    launchCreateDocument(pendingDownloadFilename, pendingDownloadMime);
+                    return;
                 }
+
+                if (url.startsWith("blob:") || url.startsWith("data:")) {
+                    // Blob/data download: fetch bytes in JS and pass to Android
+                    startBridgeDownload(url, filename, mt);
+                    return;
+                }
+
+                Log.e(TAG, "Download unsupported URL scheme: " + url);
+                Toast.makeText(MainActivity.this, "Download not supported for this link type.", Toast.LENGTH_LONG).show();
             }
         });
 
         // ---- ALWAYS load via localhost so /api/* works offline ----
         webView.loadUrl("http://127.0.0.1:" + PORT + "/");
+    }
+
+    private void launchCreateDocument(String filename, String mime) {
+        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType(mime);
+        i.putExtra(Intent.EXTRA_TITLE, filename);
+        try {
+            createDocumentLauncher.launch(i);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to launch save dialog", e);
+            Toast.makeText(MainActivity.this, "Could not open save dialog.", Toast.LENGTH_LONG).show();
+            clearPendingDownload();
+            clearPendingBridgeDownload();
+        }
+    }
+
+    private void startBridgeDownload(String url, String filename, String mime) {
+        // Store desired filename/mime now; bytes come later via bridge callback.
+        pendingBridgeFilename = filename;
+        pendingBridgeMime = mime;
+        pendingBridgeBytes = null;
+
+        // JS: fetch(blob/data URL) -> read as ArrayBuffer -> base64 -> AndroidDownloadBridge.onBlobBase64(...)
+        // No HTML changes required.
+        String js =
+                "(function(){\n" +
+                "  try {\n" +
+                "    const u = " + jsString(url) + ";\n" +
+                "    fetch(u).then(r => r.arrayBuffer()).then(buf => {\n" +
+                "      const bytes = new Uint8Array(buf);\n" +
+                "      let bin = '';\n" +
+                "      const chunk = 0x8000;\n" +
+                "      for (let i = 0; i < bytes.length; i += chunk) {\n" +
+                "        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));\n" +
+                "      }\n" +
+                "      const b64 = btoa(bin);\n" +
+                "      AndroidDownloadBridge.onBlobBase64(" + jsString(filename) + "," + jsString(mime) + ", b64);\n" +
+                "    }).catch(e => AndroidDownloadBridge.onBlobError(String(e)));\n" +
+                "  } catch (e) {\n" +
+                "    AndroidDownloadBridge.onBlobError(String(e));\n" +
+                "  }\n" +
+                "})();";
+
+        runOnUiThread(() -> webView.evaluateJavascript(js, null));
+        Toast.makeText(this, "Preparing download…", Toast.LENGTH_SHORT).show();
     }
 
     private void onFileChooserResult(ActivityResult result) {
@@ -239,33 +297,51 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void onCreateDocumentResult(ActivityResult result) {
-        if (pendingDownloadUrl == null) return;
+        // Two possible flows:
+        //  A) pendingDownloadUrl != null  => stream from http(s)
+        //  B) pendingBridgeBytes != null  => write decoded bytes (blob/data)
 
         if (result.getResultCode() != RESULT_OK || result.getData() == null || result.getData().getData() == null) {
             Toast.makeText(this, "Download cancelled.", Toast.LENGTH_SHORT).show();
             clearPendingDownload();
+            clearPendingBridgeDownload();
             return;
         }
 
         Uri destUri = result.getData().getData();
 
-        // Stream download in a background thread (avoid blocking UI)
+        if (pendingBridgeBytes != null) {
+            writeBytesToUriAsync(destUri, pendingBridgeBytes, pendingBridgeFilename);
+            clearPendingBridgeDownload();
+            return;
+        }
+
+        if (pendingDownloadUrl != null) {
+            streamHttpToUriAsync(destUri, pendingDownloadUrl, pendingDownloadFilename);
+            clearPendingDownload();
+            return;
+        }
+
+        Toast.makeText(this, "Nothing to download.", Toast.LENGTH_SHORT).show();
+        clearPendingDownload();
+        clearPendingBridgeDownload();
+    }
+
+    private void streamHttpToUriAsync(Uri destUri, String url, String filename) {
         new Thread(() -> {
             HttpURLConnection conn = null;
             InputStream in = null;
             OutputStream out = null;
 
             try {
-                URL u = new URL(pendingDownloadUrl);
+                URL u = new URL(url);
                 conn = (HttpURLConnection) u.openConnection();
                 conn.setConnectTimeout(15000);
                 conn.setReadTimeout(30000);
                 conn.setInstanceFollowRedirects(true);
 
                 int code = conn.getResponseCode();
-                if (code < 200 || code >= 300) {
-                    throw new Exception("HTTP " + code);
-                }
+                if (code < 200 || code >= 300) throw new Exception("HTTP " + code);
 
                 in = conn.getInputStream();
 
@@ -275,13 +351,11 @@ public class MainActivity extends AppCompatActivity {
 
                 byte[] buf = new byte[8192];
                 int r;
-                while ((r = in.read(buf)) != -1) {
-                    out.write(buf, 0, r);
-                }
+                while ((r = in.read(buf)) != -1) out.write(buf, 0, r);
                 out.flush();
 
                 runOnUiThread(() ->
-                        Toast.makeText(MainActivity.this, "Downloaded: " + pendingDownloadFilename, Toast.LENGTH_LONG).show()
+                        Toast.makeText(MainActivity.this, "Downloaded: " + filename, Toast.LENGTH_LONG).show()
                 );
 
             } catch (Exception e) {
@@ -293,7 +367,28 @@ public class MainActivity extends AppCompatActivity {
                 try { if (in != null) in.close(); } catch (Exception ignored) {}
                 try { if (out != null) out.close(); } catch (Exception ignored) {}
                 if (conn != null) conn.disconnect();
-                clearPendingDownload();
+            }
+        }).start();
+    }
+
+    private void writeBytesToUriAsync(Uri destUri, byte[] bytes, String filename) {
+        new Thread(() -> {
+            OutputStream out = null;
+            try {
+                out = getContentResolver().openOutputStream(destUri, "w");
+                if (out == null) throw new Exception("Could not open output stream");
+                out.write(bytes);
+                out.flush();
+                runOnUiThread(() ->
+                        Toast.makeText(MainActivity.this, "Downloaded: " + filename, Toast.LENGTH_LONG).show()
+                );
+            } catch (Exception e) {
+                Log.e(TAG, "Write download failed", e);
+                runOnUiThread(() ->
+                        Toast.makeText(MainActivity.this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                );
+            } finally {
+                try { if (out != null) out.close(); } catch (Exception ignored) {}
             }
         }).start();
     }
@@ -302,6 +397,42 @@ public class MainActivity extends AppCompatActivity {
         pendingDownloadUrl = null;
         pendingDownloadMime = null;
         pendingDownloadFilename = null;
+    }
+
+    private void clearPendingBridgeDownload() {
+        pendingBridgeFilename = null;
+        pendingBridgeMime = null;
+        pendingBridgeBytes = null;
+    }
+
+    // JS interface called from injected code above
+    private final class AndroidDownloadBridge {
+        @JavascriptInterface
+        public void onBlobBase64(String filename, String mime, String base64) {
+            try {
+                byte[] data = Base64.decode(base64, Base64.DEFAULT);
+                pendingBridgeFilename = (filename == null || filename.isEmpty()) ? "download" : filename;
+                pendingBridgeMime = (mime == null || mime.isEmpty()) ? "application/octet-stream" : mime;
+                pendingBridgeBytes = data;
+
+                runOnUiThread(() -> launchCreateDocument(pendingBridgeFilename, pendingBridgeMime));
+            } catch (Exception e) {
+                Log.e(TAG, "Blob decode failed", e);
+                runOnUiThread(() ->
+                        Toast.makeText(MainActivity.this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                );
+                clearPendingBridgeDownload();
+            }
+        }
+
+        @JavascriptInterface
+        public void onBlobError(String message) {
+            Log.e(TAG, "Blob download JS error: " + message);
+            runOnUiThread(() ->
+                    Toast.makeText(MainActivity.this, "Download failed: " + message, Toast.LENGTH_LONG).show()
+            );
+            clearPendingBridgeDownload();
+        }
     }
 
     private static String guessFilename(String url, String contentDisposition, String mime) {
@@ -318,7 +449,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // Otherwise use the URL path
+        // Otherwise use the URL path if any
         try {
             Uri u = Uri.parse(url);
             String last = u.getLastPathSegment();
@@ -328,22 +459,33 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception ignored) {}
 
-        // Fallback generic name
+        // Fallback
         String ext = "";
         if (mime != null) {
-            if (mime.contains("json")) ext = ".json";
-            else if (mime.contains("png")) ext = ".png";
-            else if (mime.contains("pdf")) ext = ".pdf";
-            else if (mime.contains("text")) ext = ".txt";
+            String m = mime.toLowerCase();
+            if (m.contains("json")) ext = ".json";
+            else if (m.contains("png")) ext = ".png";
+            else if (m.contains("pdf")) ext = ".pdf";
+            else if (m.contains("text")) ext = ".txt";
         }
         return "download" + ext;
+    }
+
+    private static String jsString(String s) {
+        if (s == null) return "''";
+        // Safe single-quoted JS string
+        return "'" + s
+                .replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r") + "'";
     }
 
     @Override
     public void onRequestPermissionsResult(
             int requestCode,
             String[] permissions,
-            int[] grantResults
+            String[] grantResults
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
@@ -380,5 +522,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         clearPendingDownload();
+        clearPendingBridgeDownload();
     }
 }
