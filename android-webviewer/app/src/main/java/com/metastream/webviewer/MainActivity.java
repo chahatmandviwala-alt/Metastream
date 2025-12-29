@@ -110,6 +110,7 @@ root.addView(focusSink, lp);
         // JS bridges
         webView.addJavascriptInterface(new AndroidDownloadBridge(), "AndroidDownloadBridge");
         webView.addJavascriptInterface(new AndroidImeBridge(), "AndroidImeBridge");
+        webView.addJavascriptInterface(new AndroidAppBridge(), "AndroidApp");
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -129,6 +130,7 @@ root.addView(focusSink, lp);
                 injectVkToggleHook();      // vkToggleBtn click => vkOn/vkOff
                 injectVkImeEnforcer();
                 injectVkVisibilityObserver(); // observe #vk hidden/visible (x close, esc, etc.)     // while VK open => keep IME hidden
+                installExitHook();
             }
         });
 
@@ -366,6 +368,32 @@ private void injectVkVisibilityObserver() {
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
 
+    private void installExitHook() {
+    final String js =
+        "(function(){\\n" +
+        "  if (window.__ms_exitHookInstalled) return;\\n" +
+        "  window.__ms_exitHookInstalled = true;\\n" +
+        "  function hook(){\\n" +
+        "    var btn = document.querySelector('button[onclick*=\"clearAndClose\"]');\\n" +
+        "    if (btn) {\\n" +
+        "      btn.addEventListener('click', function(e){\\n" +
+        "        try { e.preventDefault(); e.stopPropagation(); } catch(_) {}\\n" +
+        "        try { if (window.AndroidApp && AndroidApp.exitApp) AndroidApp.exitApp(); } catch(_) {}\\n" +
+        "        return false;\\n" +
+        "      }, true);\\n" +
+        "    }\\n" +
+        "    if (typeof window.clearAndClose === 'function') {\\n" +
+        "      window.clearAndClose = function(){\\n" +
+        "        try { if (window.AndroidApp && AndroidApp.exitApp) AndroidApp.exitApp(); } catch(_) {}\\n" +
+        "      };\\n" +
+        "    }\\n" +
+        "  }\\n" +
+        "  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook);\\n" +
+        "  else hook();\\n" +
+        "})();\\n";
+    runOnUiThread(() -> webView.evaluateJavascript(js, null));
+}
+
     /**
      * While VK is open, re-apply vkOn() on focus/input, because some IMEs pop back up
      * when the input value changes (exactly the behavior you described).
@@ -432,6 +460,24 @@ private final class AndroidImeBridge {
             hideImeNow();
         });
     }
+
+    // Add near other @JavascriptInterface bridges
+public final class AndroidAppBridge {
+    @android.webkit.JavascriptInterface
+    public void exitApp() {
+        runOnUiThread(() -> {
+            // If you have a server instance, stop it here:
+            // if (assetHttpServer != null) assetHttpServer.stop();
+
+            // Close the Activity/task
+            finishAffinity();
+
+            // Deterministic "force close" (optional but matches your requirement)
+            android.os.Process.killProcess(android.os.Process.myPid());
+            System.exit(0);
+        });
+    }
+}
 
     @JavascriptInterface
     public void vkOff() {
