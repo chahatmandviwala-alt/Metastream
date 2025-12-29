@@ -545,14 +545,36 @@ sig65[64] = vNorm;
 
     String qrDataUrl = makeQrDataUrl(urText, 8);
 
-    String json =
-            "{"
-                    + "\"ok\":true,"
-                    + "\"ur\":\"" + escapeJson(urText) + "\","
-                    + "\"qrDataUrl\":\"" + escapeJson(qrDataUrl) + "\""
-                    + "}";
+// vNorm is 0/1 (parity). r and s are 32-byte arrays.
+int vParity = (vNorm & 0xff);
 
-    return jsonOk(json);
+String rHex = bytesToHex(r);
+String sHex = bytesToHex(s);
+
+// Optional: Ethereum address from public key (safe to include; UI will use it if present)
+String address = null;
+try {
+    // ecKey is the bitcoinj ECKey you created from the private key
+    byte[] pubUncompressed = ecKey.getPubKeyPoint().getEncoded(false); // 65 bytes, starts with 0x04
+    byte[] pub64 = Arrays.copyOfRange(pubUncompressed, 1, pubUncompressed.length); // drop 0x04
+    byte[] h = keccak256(pub64);
+    byte[] addr20 = Arrays.copyOfRange(h, h.length - 20, h.length);
+    address = "0x" + bytesToHex(addr20);
+} catch (Exception ignored) {}
+
+// IMPORTANT: sign.html expects these names:
+String json =
+        "{"
+                + "\"ok\":true,"
+                + "\"urSignatureUpper\":\"" + escapeJson(urText) + "\","
+                + "\"r\":\"" + rHex + "\","
+                + "\"s\":\"" + sHex + "\","
+                + "\"vParity\":" + vParity + ","
+                + (address != null ? ("\"address\":\"" + escapeJson(address) + "\",") : "")
+                + "\"urType\":\"ETH-SIGNATURE\""
+                + "}";
+
+return jsonOk(json);
 }
 
 // --- helpers for /api/sign ---
