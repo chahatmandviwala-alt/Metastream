@@ -371,20 +371,20 @@ input[type=text]:focus, input[type=password]:focus, textarea:focus{
 <div id="err" style="font-size:10px; color:gray; margin-top:4px;"></div>
       </section>
 
+      <!-- QR section: appears next to UR on wide screens, below on narrow screens -->
+      <section class="section hidden" id="qr-section" style="align-items: center;">
+        <img id="qr" />
+        <div class="flex">
+          <button id="savePng" class="btn secondary">Download QR (PNG)</button>
+        </div>
+      </section>
+
       <!-- UR section: appears below input block after generation -->
       <section class="section hidden" id="ur-section">
         <div id="ur" class="codebox mono"></div>
         <div class="flex">
           <button id="copy" class="btn">Copy UR</button>
           <button id="saveTxt" class="btn secondary">Download ur.txt</button>
-        </div>
-      </section>
-
-      <!-- QR section: appears next to UR on wide screens, below on narrow screens -->
-      <section class="section hidden" id="qr-section" style="align-items: center;">
-        <img id="qr" />
-        <div class="flex">
-          <button id="savePng" class="btn secondary">Download QR (PNG)</button>
         </div>
       </section>
 	  
