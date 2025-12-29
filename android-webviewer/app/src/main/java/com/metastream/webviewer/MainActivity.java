@@ -43,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int PORT = 3000;
     private static final int REQ_CAMERA = 1001;
 
-    private WebView webView;
+    private ImeBlockWebView webView;
     private AssetHttpServer httpServer;
     private PermissionRequest pendingPermissionRequest;
 
@@ -344,24 +344,22 @@ public class MainActivity extends AppCompatActivity {
         } catch (Throwable ignored) {}
     }
 
-    private final class AndroidImeBridge {
-        @JavascriptInterface
-        public void vkOn() {
-            runOnUiThread(() -> {
-                // Block IME and close it immediately
-                setShowSoftInputOnFocusCompat(false);
-                hideImeNow();
-            });
-        }
-
-        @JavascriptInterface
-        public void vkOff() {
-            runOnUiThread(() -> {
-                // Restore IME behavior
-                setShowSoftInputOnFocusCompat(true);
-            });
-        }
+private final class AndroidImeBridge {
+    @JavascriptInterface
+    public void vkOn() {
+        runOnUiThread(() -> {
+            webView.setImeBlocked(true);
+            hideImeNow();
+        });
     }
+
+    @JavascriptInterface
+    public void vkOff() {
+        runOnUiThread(() -> {
+            webView.setImeBlocked(false);
+        });
+    }
+}
 
     private void launchCreateDocument(String filename, String mime) {
         Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
