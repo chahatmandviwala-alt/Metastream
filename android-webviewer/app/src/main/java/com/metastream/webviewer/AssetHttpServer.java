@@ -229,7 +229,7 @@ if (uri.startsWith("/api/")) {
         top.Add(3, node.getPubKeyPoint().getEncoded(true));
         top.Add(4, node.getChainCode());
         top.Add(6, originTagged);
-        top.Add(8, parentFp);
+        top.Add(8, (long) (parentFp & 0xffffffffL));
         top.Add(9, "AirGap - meta");
 
         byte[] cborBytes = top.EncodeToBytes();
@@ -1076,7 +1076,7 @@ private static String buildHumanJson(long chainId, String toAddr, String valueEt
         }
         com.upokecenter.cbor.CBORObject inner = com.upokecenter.cbor.CBORObject.NewMap();
         inner.Add(1, arr);
-        inner.Add(2, masterFpU32);
+        inner.Add(2, (long) (masterFpU32 & 0xffffffffL));
         return com.upokecenter.cbor.CBORObject.FromObjectAndTag(inner, 304);
     }
 
