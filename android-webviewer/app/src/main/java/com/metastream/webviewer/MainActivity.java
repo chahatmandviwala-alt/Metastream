@@ -44,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQ_CAMERA = 1001;
 
     private ImeBlockWebView webView;
+    private android.view.View focusSink;
+    private volatile boolean vkMode = false;
     private AssetHttpServer httpServer;
     private PermissionRequest pendingPermissionRequest;
 
@@ -86,7 +88,18 @@ public class MainActivity extends AppCompatActivity {
         }
 
         webView = findViewById(R.id.webview);
-        webView.setSaveEnabled(false);
+        
+
+        // A non-text focus sink used to keep Android focus away from WebView while the in-page VK is active.
+        // This prevents WebView from negotiating an InputConnection with the IME.
+        android.view.ViewGroup root = findViewById(android.R.id.content);
+        focusSink = new android.view.View(this);
+        focusSink.setFocusable(true);
+        focusSink.setFocusableInTouchMode(true);
+        focusSink.setAlpha(0f);
+        android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(1, 1);
+        root.addView(focusSink, lp);
+webView.setSaveEnabled(false);
 
         // Stable focus behavior for in-page keyboards
         webView.setFocusable(true);
@@ -192,11 +205,25 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Keep WebView focused on touch (helps with in-page keyboard)
+        // Touch handling:
+        // - When VK is OFF: keep WebView focused normally.
+        // - When VK is ON: keep Android focus on a non-text focus sink, while still letting the WebView receive touch events.
         webView.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN && !v.hasFocus()) {
-                v.requestFocus();
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                if (vkMode) {
+                    if (focusSink != null) {
+                        focusSink.requestFocus();
+                    }
+                    hideImeNow();
+                    return false;
+                }
+                if (!v.hasFocus()) {
+                    v.requestFocus();
+                }
             }
+            return false;
+        });
+}
             return false;
         });
 
@@ -297,9 +324,7 @@ public class MainActivity extends AppCompatActivity {
                 "(function(){\n" +
                 "  if (window.__ms_vkImeSuppressorInstalled) return;\n" +
                 "  window.__ms_vkImeSuppressorInstalled = true;\n" +
-                // Use a selector that avoids quote-escaping pitfalls in Java strings.
-                // [contenteditable] matches all contenteditable variants ("", "true", "plaintext-only", etc.).
-                "  const SEL = 'input, textarea, [contenteditable]';\n" +
+                "  const SEL = 'input, textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]';\n" +
                 "  const saved = new WeakMap();\n" +
                 "  function isEditable(el){\n" +
                 "    if (!el) return false;\n" +
@@ -394,7 +419,17 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void hideImeNow() {
+    private void restartInputSafe() {
+        try {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null && webView != null) {
+                imm.restartInput(webView);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+private void hideImeNow() {
         try {
             InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
             if (imm != null && webView != null) {
@@ -410,6 +445,15 @@ private final class AndroidImeBridge {
             // Best-effort: prevent OSK from showing for focused fields while VK is active.
             setShowSoftInputOnFocusCompat(false);
 
+
+            vkMode = true;
+            // Prevent WebView from becoming the focused text editor while VK is active.
+            webView.setFocusable(false);
+            webView.setFocusableInTouchMode(false);
+            webView.clearFocus();
+            if (focusSink != null) {
+                focusSink.requestFocus();
+            }
             // Block IME at the WebView InputConnection layer (ImeBlockWebView).
             webView.setImeBlocked(true);
 
@@ -424,6 +468,10 @@ private final class AndroidImeBridge {
     @JavascriptInterface
     public void vkOff() {
         runOnUiThread(() -> {
+            vkMode = false;
+            // Restore normal focus behavior.
+            webView.setFocusable(true);
+            webView.setFocusableInTouchMode(true);
             // Restore normal OSK behavior.
             webView.setImeBlocked(false);
             setShowSoftInputOnFocusCompat(true);
