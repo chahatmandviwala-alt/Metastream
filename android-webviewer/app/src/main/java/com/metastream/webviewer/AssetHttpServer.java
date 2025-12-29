@@ -234,9 +234,9 @@ if (uri.startsWith("/api/")) {
 
         byte[] cborBytes = top.EncodeToBytes();
 
-        // UR: crypto-hdkey + minimal bytewords (with CRC32)
-        String urBody = bytewordsMinimalWithCrc(cborBytes);
-        String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
+// UR: crypto-hdkey + STANDARD bytewords (with CRC32) for wallet compatibility
+String urBody = bytewordsStandardWithCrc(cborBytes);
+String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
 
         // QR data URL
         String qrDataUrl = makeQrDataUrl(urText, qrScale);
@@ -280,7 +280,25 @@ if (uri.startsWith("/api/")) {
         try {
             // NOTE: This currently expects the "minimal" 2-letter encoding.
             // Your scanned QR looks like standard bytewords; decoding may fail until we implement standard bytewords.
-            byte[] decoded = bytewordsMinimalDecodeWithCrc(bw);
+            byte[] decoded;
+String bwNorm = (bw == null ? "" : bw.trim().toLowerCase(Locale.ROOT));
+
+// Heuristic: if it contains '-' (or any non [a-z]) it's almost certainly STANDARD
+// Otherwise try MINIMAL first, then fall back to STANDARD.
+try {
+    if (bwNorm.contains("-") || bwNorm.matches(".*[^a-z].*")) {
+        decoded = bytewordsStandardDecodeWithCrc(bwNorm);
+    } else {
+        decoded = bytewordsMinimalDecodeWithCrc(bwNorm);
+    }
+} catch (Exception first) {
+    // Fallback: try the other format
+    try {
+        decoded = bytewordsStandardDecodeWithCrc(bwNorm);
+    } catch (Exception second) {
+        throw first; // keep original error for log clarity
+    }
+}
             lastUrType = type;
             lastUrCbor = decoded;
 
@@ -1120,6 +1138,55 @@ private static String buildHumanJson(long chainId, String toAddr, String valueEt
         return sb.toString();
     }
 
+    // STANDARD bytewords: 4-letter words separated by '-' + CRC32 (4 bytes, big-endian)
+private static String bytewordsStandardWithCrc(byte[] data) {
+    byte[] withCrc = appendCrc32BigEndian(data);
+    StringBuilder sb = new StringBuilder(withCrc.length * 5);
+    for (int i = 0; i < withCrc.length; i++) {
+        int u = withCrc[i] & 0xff;
+        if (i > 0) sb.append('-');
+        sb.append(BYTEWORDS[u]); // full 4-letter word
+    }
+    return sb.toString();
+}
+
+private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Exception {
+    // Accept '-' separators, spaces, etc.
+    String s = (text == null ? "" : text.trim().toLowerCase(Locale.ROOT));
+    if (s.isEmpty()) throw new Exception("empty bytewords");
+
+    // Split on anything that's not a-z
+    String[] parts = s.split("[^a-z]+");
+    if (parts.length == 0) throw new Exception("invalid bytewords");
+
+    // Build word -> byte lookup once per decode (256 only, cheap)
+    java.util.Map<String, Integer> wordToByte = new java.util.HashMap<>(512);
+    for (int i = 0; i < 256; i++) wordToByte.put(BYTEWORDS[i], i);
+
+    byte[] out = new byte[parts.length];
+    int n = 0;
+    for (String w : parts) {
+        if (w == null || w.isEmpty()) continue;
+        Integer v = wordToByte.get(w);
+        if (v == null) throw new Exception("invalid bytewords word: " + w);
+        out[n++] = (byte)(v & 0xff);
+    }
+    if (n < 4) throw new Exception("missing crc32");
+
+    byte[] full = java.util.Arrays.copyOf(out, n);
+
+    byte[] payload = java.util.Arrays.copyOfRange(full, 0, full.length - 4);
+    byte[] crc = java.util.Arrays.copyOfRange(full, full.length - 4, full.length);
+
+    java.util.zip.CRC32 c = new java.util.zip.CRC32();
+    c.update(payload);
+    long want = c.getValue();
+    long got = ((crc[0] & 0xffL) << 24) | ((crc[1] & 0xffL) << 16) | ((crc[2] & 0xffL) << 8) | (crc[3] & 0xffL);
+
+    if ((want & 0xffffffffL) != (got & 0xffffffffL)) throw new Exception("crc32 mismatch");
+    return payload;
+}
+    
     private static byte[] bytewordsMinimalDecodeWithCrc(String minimal) throws Exception {
         if ((minimal.length() % 2) != 0) throw new Exception("invalid bytewords length");
         int n = minimal.length() / 2;
