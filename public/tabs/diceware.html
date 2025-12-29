@@ -486,7 +486,16 @@
 
       <div class="control-row">
         <div class="control-left">
-          <div class="select-pill" title="Seed phrase length (BIP39)">
+          <div class="select-pill" title="Choose how the tool behaves">
+            Mode:
+            <select id="modeSelect" aria-label="Select mode">
+              <option value="simulate" selected>Simulate</option>
+              <option value="rollflip">Roll &amp; Flip</option>
+              <option value="findlast">Find last word</option>
+            </select>
+          </div>
+			
+			<div class="select-pill" title="Seed phrase length (BIP39)">
             Words:
             <select id="wordsCountSelect" aria-label="Select seed phrase length">
               <option value="12" selected>12</option>
@@ -494,15 +503,6 @@
               <option value="18">18</option>
               <option value="21">21</option>
               <option value="24">24</option>
-            </select>
-          </div>
-
-          <div class="select-pill" title="Choose how the tool behaves">
-            Mode:
-            <select id="modeSelect" aria-label="Select mode">
-              <option value="simulate" selected>Simulate</option>
-              <option value="rollflip">Roll &amp; Flip</option>
-              <option value="findlast">Find last word</option>
             </select>
           </div>
 
@@ -1416,5 +1416,6 @@ init();
   </script>
 </body>
 </html>
+
 
 
