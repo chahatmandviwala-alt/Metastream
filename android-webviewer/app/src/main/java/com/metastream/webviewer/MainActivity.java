@@ -69,6 +69,11 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(null); // disable state restore completely
         setContentView(R.layout.activity_main);
 
+        // Keep system keyboard from interfering; your in-page keyboard still works.
+        getWindow().setSoftInputMode(
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+        );
+
         // ---- start embedded offline HTTP server ----
         try {
             httpServer = new AssetHttpServer(this);
@@ -81,6 +86,16 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webview);
         webView.setSaveEnabled(false);
 
+        // Most reliable focus settings for WebView + custom on-page keyboard
+        webView.setFocusable(true);
+        webView.setFocusableInTouchMode(true);
+        webView.setClickable(true);
+        webView.setLongClickable(true);
+        webView.requestFocus();
+
+        // JS bridge for blob/data downloads
+        webView.addJavascriptInterface(new AndroidDownloadBridge(), "AndroidDownloadBridge");
+
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -91,10 +106,13 @@ public class MainActivity extends AppCompatActivity {
 
         WebView.setWebContentsDebuggingEnabled(true);
 
-        webView.setWebViewClient(new WebViewClient());
-
-        // JS bridge for blob/data downloads (no HTML changes needed)
-        webView.addJavascriptInterface(new AndroidDownloadBridge(), "AndroidDownloadBridge");
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                injectFocusKeeper();
+            }
+        });
 
         webView.setWebChromeClient(new WebChromeClient() {
 
@@ -197,17 +215,17 @@ public class MainActivity extends AppCompatActivity {
                 String filename = guessFilename(url, contentDisposition, mt);
 
                 if (url.startsWith("http://") || url.startsWith("https://")) {
-                    // Normal URL download
                     pendingDownloadUrl = url;
                     pendingDownloadMime = mt;
                     pendingDownloadFilename = filename;
-
                     launchCreateDocument(pendingDownloadFilename, pendingDownloadMime);
                     return;
                 }
 
                 if (url.startsWith("blob:") || url.startsWith("data:")) {
-                    // Blob/data download: fetch bytes in JS and pass to Android
+                    pendingBridgeFilename = filename;
+                    pendingBridgeMime = mt;
+                    pendingBridgeBytes = null;
                     startBridgeDownload(url, filename, mt);
                     return;
                 }
@@ -219,6 +237,52 @@ public class MainActivity extends AppCompatActivity {
 
         // ---- ALWAYS load via localhost so /api/* works offline ----
         webView.loadUrl("http://127.0.0.1:" + PORT + "/");
+    }
+
+    /**
+     * Most reliable solution:
+     * - Track last focused input/textarea/contenteditable
+     * - After any pointer down/click (including virtual keyboard buttons), re-focus it
+     * This prevents WebView from blurring the input when the user taps the on-page keyboard.
+     */
+    private void injectFocusKeeper() {
+        String js =
+                "(function(){\n" +
+                "  if (window.__ms_focusKeeperInstalled) return;\n" +
+                "  window.__ms_focusKeeperInstalled = true;\n" +
+                "  let last = null;\n" +
+                "  function isEditable(el){\n" +
+                "    if (!el) return false;\n" +
+                "    const t = (el.tagName||'').toLowerCase();\n" +
+                "    if (t === 'input' || t === 'textarea') return true;\n" +
+                "    if (el.isContentEditable) return true;\n" +
+                "    return false;\n" +
+                "  }\n" +
+                "  document.addEventListener('focusin', function(e){\n" +
+                "    if (isEditable(e.target)) last = e.target;\n" +
+                "  }, true);\n" +
+                "  function refocus(){\n" +
+                "    try {\n" +
+                "      if (!last) return;\n" +
+                "      if (!document.contains(last)) return;\n" +
+                "      const a = document.activeElement;\n" +
+                "      if (a === last) return;\n" +
+                "      // Only refocus if focus moved away from an editable element\n" +
+                "      if (a && isEditable(a)) return;\n" +
+                "      last.focus({preventScroll:true});\n" +
+                "      if (typeof last.setSelectionRange === 'function' && last.value != null) {\n" +
+                "        const n = last.value.length;\n" +
+                "        last.setSelectionRange(n, n);\n" +
+                "      }\n" +
+                "    } catch (_) {}\n" +
+                "  }\n" +
+                "  document.addEventListener('pointerdown', function(){ setTimeout(refocus, 0); }, true);\n" +
+                "  document.addEventListener('mousedown',  function(){ setTimeout(refocus, 0); }, true);\n" +
+                "  document.addEventListener('touchstart', function(){ setTimeout(refocus, 0); }, true);\n" +
+                "  document.addEventListener('click',      function(){ setTimeout(refocus, 0); }, true);\n" +
+                "})();";
+
+        runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
 
     private void launchCreateDocument(String filename, String mime) {
@@ -237,13 +301,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startBridgeDownload(String url, String filename, String mime) {
-        // Store desired filename/mime now; bytes come later via bridge callback.
-        pendingBridgeFilename = filename;
-        pendingBridgeMime = mime;
-        pendingBridgeBytes = null;
-
-        // JS: fetch(blob/data URL) -> read as ArrayBuffer -> base64 -> AndroidDownloadBridge.onBlobBase64(...)
-        // No HTML changes required.
         String js =
                 "(function(){\n" +
                 "  try {\n" +
@@ -297,10 +354,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void onCreateDocumentResult(ActivityResult result) {
-        // Two possible flows:
-        //  A) pendingDownloadUrl != null  => stream from http(s)
-        //  B) pendingBridgeBytes != null  => write decoded bytes (blob/data)
-
         if (result.getResultCode() != RESULT_OK || result.getData() == null || result.getData().getData() == null) {
             Toast.makeText(this, "Download cancelled.", Toast.LENGTH_SHORT).show();
             clearPendingDownload();
@@ -405,7 +458,6 @@ public class MainActivity extends AppCompatActivity {
         pendingBridgeBytes = null;
     }
 
-    // JS interface called from injected code above
     private final class AndroidDownloadBridge {
         @JavascriptInterface
         public void onBlobBase64(String filename, String mime, String base64) {
@@ -414,7 +466,6 @@ public class MainActivity extends AppCompatActivity {
                 pendingBridgeFilename = (filename == null || filename.isEmpty()) ? "download" : filename;
                 pendingBridgeMime = (mime == null || mime.isEmpty()) ? "application/octet-stream" : mime;
                 pendingBridgeBytes = data;
-
                 runOnUiThread(() -> launchCreateDocument(pendingBridgeFilename, pendingBridgeMime));
             } catch (Exception e) {
                 Log.e(TAG, "Blob decode failed", e);
@@ -436,7 +487,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private static String guessFilename(String url, String contentDisposition, String mime) {
-        // Prefer filename from Content-Disposition if present
         if (contentDisposition != null) {
             String cd = contentDisposition;
             String lower = cd.toLowerCase();
@@ -449,7 +499,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // Otherwise use the URL path if any
         try {
             Uri u = Uri.parse(url);
             String last = u.getLastPathSegment();
@@ -459,7 +508,6 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception ignored) {}
 
-        // Fallback
         String ext = "";
         if (mime != null) {
             String m = mime.toLowerCase();
@@ -473,7 +521,6 @@ public class MainActivity extends AppCompatActivity {
 
     private static String jsString(String s) {
         if (s == null) return "''";
-        // Safe single-quoted JS string
         return "'" + s
                 .replace("\\", "\\\\")
                 .replace("'", "\\'")
@@ -481,26 +528,26 @@ public class MainActivity extends AppCompatActivity {
                 .replace("\r", "\\r") + "'";
     }
 
-@Override
-public void onRequestPermissionsResult(
-        int requestCode,
-        String[] permissions,
-        int[] grantResults
-) {
-    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-    if (requestCode == REQ_CAMERA && pendingPermissionRequest != null) {
-        if (grantResults.length > 0 &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            pendingPermissionRequest.grant(
-                    pendingPermissionRequest.getResources()
-            );
-        } else {
-            pendingPermissionRequest.deny();
+        if (requestCode == REQ_CAMERA && pendingPermissionRequest != null) {
+            if (grantResults.length > 0 &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                pendingPermissionRequest.grant(
+                        pendingPermissionRequest.getResources()
+                );
+            } else {
+                pendingPermissionRequest.deny();
+            }
+            pendingPermissionRequest = null;
         }
-        pendingPermissionRequest = null;
     }
-}
 
     @Override
     protected void onDestroy() {
