@@ -348,7 +348,13 @@ private final class AndroidImeBridge {
     @JavascriptInterface
     public void vkOn() {
         runOnUiThread(() -> {
+            // Block IME at the source (ImeBlockWebView)
             webView.setImeBlocked(true);
+
+            // Force Android to rebuild the InputConnection using the new blocked state
+            restartImeNow();
+
+            // Close any already-open keyboard immediately
             hideImeNow();
         });
     }
@@ -356,9 +362,22 @@ private final class AndroidImeBridge {
     @JavascriptInterface
     public void vkOff() {
         runOnUiThread(() -> {
+            // Unblock IME
             webView.setImeBlocked(false);
+
+            // Force rebuild again so normal IME works immediately
+            restartImeNow();
         });
     }
+}
+
+    private void restartImeNow() {
+    try {
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null && webView != null) {
+            imm.restartInput(webView);
+        }
+    } catch (Throwable ignored) {}
 }
 
     private void launchCreateDocument(String filename, String mime) {
