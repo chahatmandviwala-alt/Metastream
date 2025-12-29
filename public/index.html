@@ -273,6 +273,8 @@
       display: none;
       height: 100%;
       padding: 28px;
+	  overflow-y: auto;
+	  -webkit-overflow-scrolling: touch;
     }
 
     .home.active {
@@ -465,7 +467,7 @@
       position: fixed;
       right: 16px;
       bottom: 16px;
-      width: min(800px, calc(100vw - 24px));
+      width: min(1000px, calc(100vw - 24px));
       background: rgba(17, 24, 39, 0.92);
       color: var(--text);
       border: 1px solid rgba(255,255,255,0.10);
