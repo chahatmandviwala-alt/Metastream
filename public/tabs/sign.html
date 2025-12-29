@@ -33,7 +33,7 @@
 }
 
 /* Only apply the 1.7x rule on wider screens (tablet/desktop) */
-@media (min-width: 768px){
+@media (min-width: 500px){
   :root{
     --single-column-width: calc(var(--single-block-width) * 1.7);
   }
@@ -483,6 +483,100 @@
     flex: 1 1 auto;
   }
 }
+
+/* Prevent mobile font inflation */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Two-column grid */
+.tx-grid{
+  display: grid;
+  grid-template-columns: minmax(80px, 90px) minmax(0, 1fr);
+  column-gap: 6px;
+  row-gap: 6px;
+  align-items: start;
+}
+
+/* Labels: keep compact and stable */
+.tx-grid > .muted{
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+/* Value column — CRITICAL */
+.tx-val{
+  min-width: 0;                 /* allows shrinking */
+  overflow-wrap: anywhere;      /* breaks long strings */
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+/* Code blocks (addresses, URs) */
+.tx-code{
+  display: block;
+  max-width: 100%;
+  font-size: 12px;
+  white-space: normal;          /* allow wrapping */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Summary text explicitly allowed to wrap */
+.tx-summary{
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Ensure the grid cell can actually shrink */
+.tx-grid > div {
+  min-width: 0;
+}
+
+/* Values: allow wrapping of long/unbroken strings */
+.tx-val {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Summary: force wrapping for anything inside it (including nested <code>) */
+.tx-summary,
+.tx-summary * {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* If actionLine includes <code>, this is the usual culprit */
+.tx-summary code {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  display: inline; /* or block if you prefer */
+}
+
+
+html, body {
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+}
+
+#decodedSummary,
+#decodedSummary * {
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+}
+
+body { font-size: 14px; }
+#decodedSummary { font-size: 12px; }
+.tx-grid b { font-size: inherit; }
+
+
 
     </style>
   </head>
@@ -1547,36 +1641,31 @@
             ` (selector <code>${h.details.selector}</code>)`;
         }
 
-        // --- Render: compact 2-column layout ---
-        box.innerHTML = `
-          <div style="
-            display:grid;
-            grid-template-columns: minmax(80px, 90px) minmax(0, 1fr);
-            column-gap: 2px;
-            row-gap: 3px;
-            align-items:start;
-          ">
-            <div class="muted">Network:</div>
-            <div><b>${networkLabel}</b></div>
+box.innerHTML = `
+  <div class="tx-grid">
+    <div class="muted">Network:</div>
+    <div class="tx-val">${networkLabel}</div>
 
-            <div class="muted">Tx type:</div>
-            <div><b>${type}</b></div>
+    <div class="muted">Tx type:</div>
+    <div class="tx-val">${type}</div>
 
-            <div class="muted">To:</div>
-            <div>
-              <code style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block; max-width:100%;">${toAddr}</code>
-            </div>
+    <div class="muted">To:</div>
+    <div class="tx-val">
+      <code class="tx-code"><b>${toAddr}</b></code>
+    </div>
 
-            <div class="muted">Token:</div>
-            <div><b>${token}</b></div>
+    <div class="muted">Token:</div>
+    <div class="tx-val"><b>${token}</b></div>
 
-            <div class="muted">Amount:</div>
-            <div><b>${amount}</b></div>
+    <div class="muted">Amount:</div>
+    <div class="tx-val"><b>${amount}</b></div>
 
-            <div class="muted">Summary:</div>
-            <div>${actionLine}</div>
-          </div>
-        `;
+    <div class="muted">Summary:</div>
+    <div class="tx-val tx-summary">${actionLine}</div>
+  </div>
+`;
+
+
 
         // Panel content changed; keep heights aligned
         syncRightPanelHeights();
