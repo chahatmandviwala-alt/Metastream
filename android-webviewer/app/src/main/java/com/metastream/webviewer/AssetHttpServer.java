@@ -117,11 +117,19 @@ if (uri.startsWith("/api/")) {
     if ("/api/gen".equals(uri) && method == Method.POST) {
         return handleApiGen(postData);
     }
-    if ("/api/ur/reset".equals(uri) && method == Method.POST) {
-        lastUrType = null;
-        lastUrCbor = null;
-        return jsonOk("{\"ok\":true}");
-    }
+    
+	if ("/api/ur/reset".equals(uri) && method == Method.POST) {
+    	// Reset multipart collection state
+    	urDecoder = new URDecoder();
+    	lastCompletedUr = null;
+
+    	// Reset "single-part decoded" cache used by /api/ur/decoded
+    	lastUrType = null;
+    	lastUrCbor = null;
+
+    	return jsonOk("{\"ok\":true}");
+	}
+
     if ("/api/ur/part".equals(uri) && method == Method.POST) {
         return handleApiUrPart(postData);
     }
