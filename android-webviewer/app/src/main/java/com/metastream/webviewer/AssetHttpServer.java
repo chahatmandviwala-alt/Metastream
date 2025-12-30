@@ -26,9 +26,6 @@ import java.util.zip.CRC32;
 
 import fi.iki.elonen.NanoHTTPD;
 
-import com.sparrowwallet.hummingbird.ResultType;
-import com.sparrowwallet.hummingbird.UR;
-import com.sparrowwallet.hummingbird.URDecoder;
 /**
  * Local offline HTTP server:
  *   - Serves web UI from android_asset/ (copied from /public at build time)
@@ -46,10 +43,6 @@ public class AssetHttpServer extends NanoHTTPD {
 
     private final Context appContext;
     private final AssetManager assets;
-
-	// ---- UR multipart decoder state (Android only) ----
-	private URDecoder urDecoder = null;
-	private UR lastCompletedUr = null;
 
     // --- UR collector state (Tool 2) ---
     private volatile String lastUrType = null;
@@ -118,24 +111,14 @@ if (uri.startsWith("/api/")) {
     if ("/api/gen".equals(uri) && method == Method.POST) {
         return handleApiGen(postData);
     }
-    
-	if ("/api/ur/reset".equals(uri) && method == Method.POST) {
-    	// Reset multipart collection state
-    	urDecoder = new URDecoder();
-    	lastCompletedUr = null;
-
-    	// Reset "single-part decoded" cache used by /api/ur/decoded
-    	lastUrType = null;
-    	lastUrCbor = null;
-
-    	return jsonOk("{\"ok\":true}");
-	}
-
-	if ("/api/ur/part".equals(uri) && method == Method.POST) {
-    	return handleApiUrPart(postData);
-	}
-
-	
+    if ("/api/ur/reset".equals(uri) && method == Method.POST) {
+        lastUrType = null;
+        lastUrCbor = null;
+        return jsonOk("{\"ok\":true}");
+    }
+    if ("/api/ur/part".equals(uri) && method == Method.POST) {
+        return handleApiUrPart(postData);
+    }
     if ("/api/ur/decoded".equals(uri) && method == Method.GET) {
         return handleApiUrDecoded();
     }
@@ -271,54 +254,69 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
         return jsonOk(json);
     }
 
-	// --------------------------
-	// UR multipart collector (animated UR / fountain)
-	// --------------------------
-	private Response handleApiUrPart(String body) throws Exception {
-    	String part = jsonGetString(body, "part", "").trim();
+    // --------------------------
+    // /api/ur/part  (Sign - collector)
+    // Single-part URs: ur:<type>/<bytewords>
+    // --------------------------
+    private Response handleApiUrPart(String body) throws Exception {
+        String part = jsonGetString(body, "part", "").trim();
 
-    	if (part.isEmpty()) {
-        	return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
-    	}
+        if (part.isEmpty()) {
+            return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
+        }
 
-    	// Ensure decoder exists (in case caller forgot /api/ur/reset)
-    	if (urDecoder == null) urDecoder = new URDecoder();
+        // Normalize like server.js (lowercase)
+        String p = part.toLowerCase(Locale.ROOT);
 
-    	try {
-        	// Feed one animated UR frame
-        	// Feed one animated UR frame
-			urDecoder.receivePart(part);
+        // Expect "ur:type/...."
+        if (!p.startsWith("ur:") || !p.contains("/")) {
+            return jsonOk("{\"status\":\"error\",\"error\":\"invalid ur\"}");
+        }
 
-			// Hummingbird: result is available only when complete (or error)
-			URDecoder.Result res = urDecoder.getResult();
-			if (res == null) {
-    			return jsonOk("{\"status\":\"collecting\"}");
-			}
+        int slash = p.indexOf('/');
+        String type = p.substring(3, slash);
+        String bw = p.substring(slash + 1);
 
-			if (res.type != ResultType.SUCCESS) {
-    			// Reset so next scan can start cleanly
-    			urDecoder = new URDecoder();
-    			lastCompletedUr = null;
-    			return jsonOk("{\"status\":\"error\"}");
-			}
+        try {
+            // NOTE: This currently expects the "minimal" 2-letter encoding.
+            // Your scanned QR looks like standard bytewords; decoding may fail until we implement standard bytewords.
+            byte[] decoded;
+String bwNorm = (bw == null ? "" : bw.trim().toLowerCase(Locale.ROOT));
 
-			// Complete: assembled UR is available
-			UR ur = res.ur;
-			lastCompletedUr = ur;
+// Heuristic: if it contains '-' (or any non [a-z]) it's almost certainly STANDARD
+// Otherwise try MINIMAL first, then fall back to STANDARD.
+try {
+    if (bwNorm.contains("-") || bwNorm.matches(".*[^a-z].*")) {
+        decoded = bytewordsStandardDecodeWithCrc(bwNorm);
+    } else {
+        decoded = bytewordsMinimalDecodeWithCrc(bwNorm);
+    }
+} catch (Exception first) {
+    // Fallback: try the other format
+    try {
+        decoded = bytewordsStandardDecodeWithCrc(bwNorm);
+    } catch (Exception second) {
+        throw first; // keep original error for log clarity
+    }
+}
+            lastUrType = type;
+            lastUrCbor = decoded;
 
-			// Populate your existing cache for /api/ur/decoded
-			lastUrType = ur.getType();
-			lastUrCbor = ur.toBytes();
+            boolean ok = "eth-sign-request".equals(type);
 
-			return jsonOk("{\"status\":\"complete\"}");
+            String json =
+                    "{"
+                            + "\"status\":\"complete\","
+                            + "\"type\":\"" + escapeJson(type) + "\","
+                            + "\"cborHex\":\"" + bytesToHex(decoded) + "\","
+                            + "\"ok\":" + (ok ? "true" : "false")
+                            + "}";
+            return jsonOk(json);
 
-    	} catch (Exception ex) {
-        	// Reset decoder so the next scan session can proceed cleanly
-        	urDecoder = new URDecoder();
-        	lastCompletedUr = null;
-        	return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(msgOrDefault(ex)) + "\"}");
-    	}
-	}
+        } catch (Exception ex) {
+            return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(msgOrDefault(ex)) + "\"}");
+        }
+    }
 
     private Response handleApiUrDecoded() {
         try {
