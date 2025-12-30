@@ -576,7 +576,68 @@ body { font-size: 14px; }
 #decodedSummary { font-size: 12px; }
 .tx-grid b { font-size: inherit; }
 
+/* Keep the outer card properly clipped */
+#sigCard {
+  overflow: hidden;
+  box-sizing: border-box;
+}
 
+/* Add safe inner spacing for textarea column */
+#sigCard .sig-layout > div:last-child {
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+/* Constrain textarea correctly */
+#sigText {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: block;
+}
+
+/* ===== Signature panel: prevent horizontal overflow on phones ===== */
+
+/* Keep the card rounded and clipping */
+#sigCard {
+  overflow: hidden;
+  padding: 8px;              /* key: gives textarea/header breathing room */
+  box-sizing: border-box;
+}
+
+/* Do not clip inside the layout */
+#sigCard .sig-layout {
+  overflow: visible;
+}
+
+/* Critical for flex children: allow shrinking instead of overflowing */
+#sigCard .sig-layout > div {
+  min-width: 0;
+}
+
+/* Override the global nowrap that causes the overflow */
+#sigCard .tx-header > * {
+  white-space: normal;
+}
+
+/* Make right column a flex stack so textarea can size cleanly */
+#sigCard .sig-layout > div:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Fix textarea sizing: don't use height:100% here (it causes bad math in flex layouts) */
+#sigText {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: block;
+
+  height: auto !important;   /* overrides your inline height:100% */
+  flex: 1 1 auto;
+  min-height: 0;
+}
 
     </style>
   </head>
