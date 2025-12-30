@@ -310,69 +310,44 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
         return jsonOk(json);
     }
 
-    // --------------------------
-    // /api/ur/part  (Sign - collector)
-    // Single-part URs: ur:<type>/<bytewords>
-    // --------------------------
-    private Response handleApiUrPart(String body) throws Exception {
-        String part = jsonGetString(body, "part", "").trim();
+	// --------------------------
+	// UR multipart collector (animated UR / fountain)
+	// --------------------------
+	private Response handleApiUrPart(String body) throws Exception {
+    	String part = jsonGetString(body, "part", "").trim();
 
-        if (part.isEmpty()) {
-            return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
-        }
+    	if (part.isEmpty()) {
+        	return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
+    	}
 
-        // Normalize like server.js (lowercase)
-        String p = part.toLowerCase(Locale.ROOT);
+    	// Ensure decoder exists (in case caller forgot /api/ur/reset)
+    	if (urDecoder == null) urDecoder = new URDecoder();
 
-        // Expect "ur:type/...."
-        if (!p.startsWith("ur:") || !p.contains("/")) {
-            return jsonOk("{\"status\":\"error\",\"error\":\"invalid ur\"}");
-        }
+    	try {
+        	// Feed one animated UR frame
+        	urDecoder.receivePart(part);
 
-        int slash = p.indexOf('/');
-        String type = p.substring(3, slash);
-        String bw = p.substring(slash + 1);
+        	if (!urDecoder.isComplete()) {
+            	return jsonOk("{\"status\":\"collecting\"}");
+        	}
 
-        try {
-            // NOTE: This currently expects the "minimal" 2-letter encoding.
-            // Your scanned QR looks like standard bytewords; decoding may fail until we implement standard bytewords.
-            byte[] decoded;
-String bwNorm = (bw == null ? "" : bw.trim().toLowerCase(Locale.ROOT));
+        	// Complete: assembled UR is available
+        	UR ur = urDecoder.resultUR();
+        	lastCompletedUr = ur;
 
-// Heuristic: if it contains '-' (or any non [a-z]) it's almost certainly STANDARD
-// Otherwise try MINIMAL first, then fall back to STANDARD.
-try {
-    if (bwNorm.contains("-") || bwNorm.matches(".*[^a-z].*")) {
-        decoded = bytewordsStandardDecodeWithCrc(bwNorm);
-    } else {
-        decoded = bytewordsMinimalDecodeWithCrc(bwNorm);
-    }
-} catch (Exception first) {
-    // Fallback: try the other format
-    try {
-        decoded = bytewordsStandardDecodeWithCrc(bwNorm);
-    } catch (Exception second) {
-        throw first; // keep original error for log clarity
-    }
-}
-            lastUrType = type;
-            lastUrCbor = decoded;
+        	// Populate your existing cache for /api/ur/decoded
+        	lastUrType = ur.getType();
+        	lastUrCbor = ur.getCbor();
 
-            boolean ok = "eth-sign-request".equals(type);
+        	return jsonOk("{\"status\":\"complete\"}");
 
-            String json =
-                    "{"
-                            + "\"status\":\"complete\","
-                            + "\"type\":\"" + escapeJson(type) + "\","
-                            + "\"cborHex\":\"" + bytesToHex(decoded) + "\","
-                            + "\"ok\":" + (ok ? "true" : "false")
-                            + "}";
-            return jsonOk(json);
-
-        } catch (Exception ex) {
-            return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(msgOrDefault(ex)) + "\"}");
-        }
-    }
+    	} catch (Exception ex) {
+        	// Reset decoder so the next scan session can proceed cleanly
+        	urDecoder = new URDecoder();
+        	lastCompletedUr = null;
+        	return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(msgOrDefault(ex)) + "\"}");
+    	}
+	}
 
     private Response handleApiUrDecoded() {
         try {
