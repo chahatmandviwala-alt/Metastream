@@ -639,6 +639,28 @@ body { font-size: 14px; }
   min-height: 0;
 }
 
+.wallet-address {
+  font-family: monospace;
+  font-size: 1em;
+
+  /* default: wide screens */
+  white-space: nowrap;
+  margin-left: 4px;
+}
+
+/* Narrow screens: allow wrapping */
+@media (max-width: 520px) {
+  .wallet-address {
+    display: block;              /* moves to second row */
+    margin-left: 0;
+    margin-top: 2px;
+
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
     </style>
   </head>
 
@@ -1238,7 +1260,7 @@ body { font-size: 14px; }
 
           const addr = currentAddress || '(address unavailable)';
           walletAlertEl.innerHTML =
-            `<strong>Wallet Unlocked:</strong> &thinsp; ${addr}`;
+            `<strong>Wallet Unlocked:</strong><span class="wallet-address">${addr}</span>`;
         }
 
         // Ensure old footnote stays hidden (legacy)
