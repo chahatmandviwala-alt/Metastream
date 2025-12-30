@@ -131,8 +131,50 @@ if (uri.startsWith("/api/")) {
 	}
 
     if ("/api/ur/part".equals(uri) && method == Method.POST) {
-        return handleApiUrPart(postData);
-    }
+    	// Ensure decoder exists (in case caller forgot to reset)
+	    if (urDecoder == null) urDecoder = new URDecoder();
+
+	    String body = readBody(session); // use your existing body reader helper
+	    String part = extractJsonString(body, "part"); // use your existing JSON helper
+
+	    if (part == null || part.trim().isEmpty()) {
+	        return jsonError(400, "{\"error\":\"missing part\"}");
+	    }
+
+	    part = part.trim();
+
+	    try {
+	        // Feed one animated UR frame into the fountain decoder
+	        urDecoder.receivePart(part);
+
+	        if (!urDecoder.isComplete()) {
+ 	           // Still collecting frames
+     	       // Provide progress hints if available; if not, still return collecting
+    	        int received = urDecoder.getReceivedPartIndexes().size();
+        	    int expected = urDecoder.getExpectedPartCount(); // may be 0/unknown until enough parts seen
+
+        	    String progressJson = "{\"status\":\"collecting\",\"received\":" + received + ",\"expected\":" + expected + "}";
+        	    return jsonOk(progressJson);
+        	}
+
+        	// Completed: obtain assembled UR
+        	UR ur = urDecoder.resultUR();
+        	lastCompletedUr = ur;
+
+        	// Reuse your existing single-part decode pipeline:
+        	// set lastUrType / lastUrCbor so /api/ur/decoded returns it
+        	lastUrType = ur.getType();
+        	lastUrCbor = ur.getCbor();
+
+        	return jsonOk("{\"status\":\"complete\"}");
+
+    	} catch (Exception e) {
+        	// Reset decoder on bad input to avoid getting stuck
+        	urDecoder = new URDecoder();
+        	return jsonError(400, "{\"status\":\"error\",\"error\":\"invalid ur part\"}");
+    	}
+	}
+	
     if ("/api/ur/decoded".equals(uri) && method == Method.GET) {
         return handleApiUrDecoded();
     }
