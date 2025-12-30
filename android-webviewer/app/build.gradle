@@ -34,4 +34,6 @@ dependencies {
     // QR generation (to return qrDataUrl like server.js does)
     implementation 'com.google.zxing:core:3.5.3'
 
+    implementation 'com.github.chahatmandviwala-alt:bc-ur-java:1.0-SNAPSHOT'
+
 }
