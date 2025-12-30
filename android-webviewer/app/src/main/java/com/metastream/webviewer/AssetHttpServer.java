@@ -823,6 +823,81 @@ private static byte[] pad32(byte[] b) {
         java.math.BigDecimal out = bd.divide(div, decimals, java.math.RoundingMode.DOWN);
         return out.stripTrailingZeros().toPlainString();
     }
+	
+	private static String hexWord(String dataHex, int argWordIndex) {
+		// argWordIndex is 0-based index of 32-byte words AFTER the 4-byte selector
+		int start = 8 + argWordIndex * 64;
+		int end = start + 64;
+		if (dataHex == null || dataHex.length() < end) return null;
+		return dataHex.substring(start, end);
+	}
+
+	private static String addrFromWord(String word64) {
+		if (word64 == null || word64.length() != 64) return null;
+		return "0x" + word64.substring(24); // last 20 bytes
+	}
+	
+	private static String bytesAt(String hex, int byteOffset, int byteLen) {
+		int start = byteOffset * 2;
+		int end = start + byteLen * 2;
+		if (hex == null || hex.length() < end) return null;
+		return hex.substring(start, end);
+	}
+
+	/**
+	* Uniswap V3 path encoding:
+	* exactInput path: tokenIn(20) + fee(3) + tokenMid(20) + fee(3) + tokenOut(20) ...
+	* exactOutput path: same bytes but interpreted in reverse hop order; easiest is:
+	* - tokenOut is first 20 bytes
+	* - tokenIn is last 20 bytes
+	*/
+	private static String[] parseV3PathTokens(String pathHexNo0x, boolean exactOutput) {
+		if (pathHexNo0x == null) return null;
+
+		// Must be at least 20 + 3 + 20 bytes for one hop = 43 bytes = 86 hex chars
+		if (pathHexNo0x.length() < 86) return null;
+
+		String first20 = bytesAt(pathHexNo0x, 0, 20);
+		String last20  = bytesAt(pathHexNo0x, (pathHexNo0x.length() / 2) - 20, 20);
+		if (first20 == null || last20 == null) return null;
+
+		// For exactInput: first=tokenIn, last=tokenOut
+		// For exactOutput: first=tokenOut, last=tokenIn (path executed backwards)
+		String tokenA = exactOutput ? ("0x" + first20) : ("0x" + first20);
+		String tokenB = exactOutput ? ("0x" + last20)  : ("0x" + last20);
+
+		// Return [tokenFirst, tokenLast] in path byte order; caller decides meaning.
+		return new String[]{ tokenA.toLowerCase(), tokenB.toLowerCase() };
+	}
+	
+	private static String readDynamicBytesHex(String dataHex, int offsetBytesFromArgsStart) {
+		// dataHex includes selector at the beginning (8 hex chars)
+		int dynStart = 8 + offsetBytesFromArgsStart * 2;
+		if (dataHex == null || dataHex.length() < dynStart + 64) return null;
+
+		// first word = length (in bytes)
+		int lenBytes = safeIntFromBig(new java.math.BigInteger(dataHex.substring(dynStart, dynStart + 64), 16));
+		int bytesStart = dynStart + 64;
+		int bytesHexLen = lenBytes * 2;
+
+		if (lenBytes < 0) return null;
+		if (dataHex.length() < bytesStart + bytesHexLen) return null;
+
+		return dataHex.substring(bytesStart, bytesStart + bytesHexLen);
+	}
+
+	private static java.math.BigInteger uintFromWord(String word64) {
+		if (word64 == null || word64.length() != 64) return java.math.BigInteger.ZERO;
+		return new java.math.BigInteger(word64, 16);
+	}
+
+	private static int safeIntFromBig(java.math.BigInteger bi) {
+		if (bi == null) return 0;
+		if (bi.signum() < 0) return 0;
+		// clamp to int range (offsets in calldata will never need >2^31 in real tx)
+		if (bi.compareTo(java.math.BigInteger.valueOf(Integer.MAX_VALUE)) > 0) return Integer.MAX_VALUE;
+		return bi.intValue();
+	}
 
     // ---- ERC20 token metadata (symbol/decimals) ----
     private static class TokenInfo {
@@ -913,8 +988,27 @@ private static byte[] pad32(byte[] b) {
         String recipient;
         String selector;
         String tokenSymbol;
+		String tokenSymbolOut;
         String humanAmount;
     }
+	
+	// DEX swap selectors (Uniswap V2 family)
+	private static final String SWAP_EXACT_TOKENS_FOR_TOKENS = "38ed1739";
+	private static final String SWAP_EXACT_ETH_FOR_TOKENS    = "7ff36ab5";
+	private static final String SWAP_EXACT_TOKENS_FOR_ETH    = "18cbafe5";
+
+	// DEX swap selectors (Uniswap V3 SwapRouter)
+	private static final String V3_EXACT_INPUT_SINGLE        = "414bf389";
+	
+	// Uniswap V2 family (exact output variants)
+	private static final String SWAP_TOKENS_FOR_EXACT_TOKENS = "8803dbee";
+	private static final String SWAP_ETH_FOR_EXACT_TOKENS    = "fb3bdb41";
+	private static final String SWAP_TOKENS_FOR_EXACT_ETH    = "4a25d94a";
+
+	// Uniswap V3 SwapRouter (multihop + exact output)
+	private static final String V3_EXACT_INPUT               = "b858183f";
+	private static final String V3_EXACT_OUTPUT_SINGLE       = "db3e2198";
+	private static final String V3_EXACT_OUTPUT              = "09b81346";
 
     private static Action classifyAction(long chainId, String toAddr, java.math.BigInteger valueWei, byte[] dataBuf) {
         Action a = new Action();
@@ -968,72 +1062,373 @@ private static byte[] pad32(byte[] b) {
             return a;
         }
 
-        a.kind = "contract.call";
+        // DEX: Uniswap V2 style swapExactTokensForTokens(uint256,uint256,address[],address,uint256)
+		if (dataHex.length() >= 8 + 5 * 64 && dataHex.startsWith(SWAP_EXACT_TOKENS_FOR_TOKENS)) {
+
+			java.math.BigInteger amountIn = uintFromWord(hexWord(dataHex, 0));
+			// word1 = amountOutMin (not used for "knownAmount" summary)
+			java.math.BigInteger pathOffset = uintFromWord(hexWord(dataHex, 2));
+
+			int offsetBytes = safeIntFromBig(pathOffset); // offset from start of args
+			int dynStart = 8 + offsetBytes * 2;           // convert bytes -> hex chars, plus selector already excluded by using 8 + ...
+			if (dataHex.length() >= dynStart + 64) {
+				// first dynamic word = length of path
+				int pathLen = safeIntFromBig(new java.math.BigInteger(dataHex.substring(dynStart, dynStart + 64), 16));
+				int firstAddrWord = dynStart + 64;
+				int lastAddrWord  = firstAddrWord + (pathLen - 1) * 64;
+
+				if (pathLen >= 2 && dataHex.length() >= lastAddrWord + 64) {
+					String tokenInAddr  = addrFromWord(dataHex.substring(firstAddrWord, firstAddrWord + 64));
+					String tokenOutAddr = addrFromWord(dataHex.substring(lastAddrWord,  lastAddrWord  + 64));
+
+					TokenInfo in = lookupToken(chainId, tokenInAddr);
+					TokenInfo out = lookupToken(chainId, tokenOutAddr);
+
+					a.kind = "dex.swap";
+					a.recipient = toAddr; // router
+					a.selector = dataHex.substring(0, 8);
+
+					a.tokenSymbol = (in != null ? in.symbol : "ERC20");
+					a.tokenSymbolOut = (out != null ? out.symbol : "ERC20");
+					a.humanAmount = formatUnits(amountIn, (in != null ? in.decimals : 18));
+
+					return a;
+				}
+			}
+		}
+		
+		// DEX: Uniswap V2 style swapExactETHForTokens(uint256,address[],address,uint256)
+		if (dataHex.length() >= 8 + 4 * 64 && dataHex.startsWith(SWAP_EXACT_ETH_FOR_TOKENS)) {
+
+			// amountIn is tx.value in wei
+			java.math.BigInteger amountInWei = valueWei;
+
+			java.math.BigInteger pathOffset = uintFromWord(hexWord(dataHex, 1));
+
+			int offsetBytes = safeIntFromBig(pathOffset);
+			int dynStart = 8 + offsetBytes * 2;
+			if (dataHex.length() >= dynStart + 64) {
+				int pathLen = safeIntFromBig(new java.math.BigInteger(dataHex.substring(dynStart, dynStart + 64), 16));
+				int firstAddrWord = dynStart + 64;
+				int lastAddrWord  = firstAddrWord + (pathLen - 1) * 64;
+
+				if (pathLen >= 1 && dataHex.length() >= lastAddrWord + 64) {
+					// tokenOut is the last element in path
+					String tokenOutAddr = addrFromWord(dataHex.substring(lastAddrWord, lastAddrWord + 64));
+					TokenInfo out = lookupToken(chainId, tokenOutAddr);
+
+					a.kind = "dex.swap";
+					a.recipient = toAddr; // router
+					a.selector = dataHex.substring(0, 8);
+
+					a.tokenSymbol = "ETH";
+					a.tokenSymbolOut = (out != null ? out.symbol : "ERC20");
+					a.humanAmount = formatUnits(amountInWei, 18);
+
+					return a;
+				}
+			}
+		}
+		
+		// DEX: Uniswap V2 style swapExactTokensForETH(uint256,uint256,address[],address,uint256)
+		if (dataHex.length() >= 8 + 5 * 64 && dataHex.startsWith(SWAP_EXACT_TOKENS_FOR_ETH)) {
+
+			java.math.BigInteger amountIn = uintFromWord(hexWord(dataHex, 0));
+			java.math.BigInteger pathOffset = uintFromWord(hexWord(dataHex, 2));
+
+			int offsetBytes = safeIntFromBig(pathOffset);
+			int dynStart = 8 + offsetBytes * 2;
+			if (dataHex.length() >= dynStart + 64) {
+				int pathLen = safeIntFromBig(new java.math.BigInteger(dataHex.substring(dynStart, dynStart + 64), 16));
+				int firstAddrWord = dynStart + 64;
+
+				if (pathLen >= 1 && dataHex.length() >= firstAddrWord + 64) {
+					String tokenInAddr = addrFromWord(dataHex.substring(firstAddrWord, firstAddrWord + 64));
+					TokenInfo in = lookupToken(chainId, tokenInAddr);
+
+					a.kind = "dex.swap";
+					a.recipient = toAddr; // router
+					a.selector = dataHex.substring(0, 8);
+
+					a.tokenSymbol = (in != null ? in.symbol : "ERC20");
+					a.tokenSymbolOut = "ETH";
+					a.humanAmount = formatUnits(amountIn, (in != null ? in.decimals : 18));
+
+					return a;
+				}
+			}
+		}
+		
+		// DEX: Uniswap V3 SwapRouter exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))
+		if (dataHex.length() >= 8 + 8 * 64 && dataHex.startsWith(V3_EXACT_INPUT_SINGLE)) {
+
+			String tokenInAddr  = addrFromWord(hexWord(dataHex, 0));
+			String tokenOutAddr = addrFromWord(hexWord(dataHex, 1));
+			java.math.BigInteger amountIn = uintFromWord(hexWord(dataHex, 5));
+
+			TokenInfo in = lookupToken(chainId, tokenInAddr);
+			TokenInfo out = lookupToken(chainId, tokenOutAddr);
+
+			a.kind = "dex.swap";
+			a.recipient = toAddr; // router
+			a.selector = dataHex.substring(0, 8);
+
+			a.tokenSymbol = (in != null ? in.symbol : "ERC20");
+			a.tokenSymbolOut = (out != null ? out.symbol : "ERC20");
+			a.humanAmount = formatUnits(amountIn, (in != null ? in.decimals : 18));
+
+			return a;
+		}
+		
+		// DEX: Uniswap V2 style swapTokensForExactTokens(uint256 amountOut, uint256 amountInMax, address[] path, address to, uint256 deadline)
+		if (dataHex.length() >= 8 + 5 * 64 && dataHex.startsWith(SWAP_TOKENS_FOR_EXACT_TOKENS)) {
+
+			java.math.BigInteger amountOut = uintFromWord(hexWord(dataHex, 0));
+			java.math.BigInteger pathOffset = uintFromWord(hexWord(dataHex, 2));
+
+			int offsetBytes = safeIntFromBig(pathOffset);
+			int dynStart = 8 + offsetBytes * 2;
+
+			if (dataHex.length() >= dynStart + 64) {
+				int pathLen = safeIntFromBig(new java.math.BigInteger(dataHex.substring(dynStart, dynStart + 64), 16));
+				int firstAddrWord = dynStart + 64;
+				int lastAddrWord  = firstAddrWord + (pathLen - 1) * 64;
+
+				if (pathLen >= 2 && dataHex.length() >= lastAddrWord + 64) {
+					String tokenInAddr  = addrFromWord(dataHex.substring(firstAddrWord, firstAddrWord + 64));
+					String tokenOutAddr = addrFromWord(dataHex.substring(lastAddrWord,  lastAddrWord  + 64));
+
+					TokenInfo in  = lookupToken(chainId, tokenInAddr);
+					TokenInfo out = lookupToken(chainId, tokenOutAddr);
+
+					a.kind = "dex.swap";
+					a.recipient = toAddr;
+					a.selector = dataHex.substring(0, 8);
+
+					// TokenA = known token (output)
+					a.tokenSymbol = (out != null ? out.symbol : "ERC20");
+					a.tokenSymbolOut = (in != null ? in.symbol : "ERC20");
+					a.humanAmount = formatUnits(amountOut, (out != null ? out.decimals : 18));
+
+					return a;
+				}
+			}
+		}
+		
+		// DEX: Uniswap V2 style swapETHForExactTokens(uint256 amountOut, address[] path, address to, uint256 deadline)
+		if (dataHex.length() >= 8 + 4 * 64 && dataHex.startsWith(SWAP_ETH_FOR_EXACT_TOKENS)) {
+
+			java.math.BigInteger amountOut = uintFromWord(hexWord(dataHex, 0));
+			java.math.BigInteger pathOffset = uintFromWord(hexWord(dataHex, 1));
+
+			int offsetBytes = safeIntFromBig(pathOffset);
+			int dynStart = 8 + offsetBytes * 2;
+
+			if (dataHex.length() >= dynStart + 64) {
+				int pathLen = safeIntFromBig(new java.math.BigInteger(dataHex.substring(dynStart, dynStart + 64), 16));
+				int lastAddrWord = dynStart + 64 + (pathLen - 1) * 64;
+
+				if (pathLen >= 1 && dataHex.length() >= lastAddrWord + 64) {
+					String tokenOutAddr = addrFromWord(dataHex.substring(lastAddrWord, lastAddrWord + 64));
+					TokenInfo out = lookupToken(chainId, tokenOutAddr);
+
+					a.kind = "dex.swap";
+					a.recipient = toAddr;
+					a.selector = dataHex.substring(0, 8);
+
+					a.tokenSymbol = (out != null ? out.symbol : "ERC20"); // known
+					a.tokenSymbolOut = "ETH";
+					a.humanAmount = formatUnits(amountOut, (out != null ? out.decimals : 18));
+
+					return a;
+				}
+			}
+		}
+		
+		// DEX: Uniswap V2 style swapTokensForExactETH(uint256 amountOut, uint256 amountInMax, address[] path, address to, uint256 deadline)
+		if (dataHex.length() >= 8 + 5 * 64 && dataHex.startsWith(SWAP_TOKENS_FOR_EXACT_ETH)) {
+
+			java.math.BigInteger amountOutWei = uintFromWord(hexWord(dataHex, 0));
+			java.math.BigInteger pathOffset = uintFromWord(hexWord(dataHex, 2));
+
+			int offsetBytes = safeIntFromBig(pathOffset);
+			int dynStart = 8 + offsetBytes * 2;
+
+			if (dataHex.length() >= dynStart + 64) {
+				int pathLen = safeIntFromBig(new java.math.BigInteger(dataHex.substring(dynStart, dynStart + 64), 16));
+				int firstAddrWord = dynStart + 64;
+
+				if (pathLen >= 1 && dataHex.length() >= firstAddrWord + 64) {
+					String tokenInAddr = addrFromWord(dataHex.substring(firstAddrWord, firstAddrWord + 64));
+					TokenInfo in = lookupToken(chainId, tokenInAddr);
+
+					a.kind = "dex.swap";
+					a.recipient = toAddr;
+					a.selector = dataHex.substring(0, 8);
+
+					a.tokenSymbol = "ETH"; // known token
+					a.tokenSymbolOut = (in != null ? in.symbol : "ERC20");
+					a.humanAmount = formatUnits(amountOutWei, 18);
+
+					return a;
+				}
+			}
+		}
+		
+		// DEX: Uniswap V3 exactInput((bytes path,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum))
+		if (dataHex.length() >= 8 + 5 * 64 && dataHex.startsWith(V3_EXACT_INPUT)) {
+
+			int pathOffsetBytes = safeIntFromBig(uintFromWord(hexWord(dataHex, 0)));
+			String pathHex = readDynamicBytesHex(dataHex, pathOffsetBytes);
+			if (pathHex != null) {
+				String[] firstLast = parseV3PathTokens(pathHex, false);
+				if (firstLast != null) {
+					String tokenInAddr = firstLast[0];   // first in bytes
+					String tokenOutAddr = firstLast[1];  // last in bytes
+					java.math.BigInteger amountIn = uintFromWord(hexWord(dataHex, 3));
+
+					TokenInfo in  = lookupToken(chainId, tokenInAddr);
+					TokenInfo out = lookupToken(chainId, tokenOutAddr);
+
+					a.kind = "dex.swap";
+					a.recipient = toAddr;
+					a.selector = dataHex.substring(0, 8);
+
+					a.tokenSymbol = (in != null ? in.symbol : "ERC20");
+					a.tokenSymbolOut = (out != null ? out.symbol : "ERC20");
+					a.humanAmount = formatUnits(amountIn, (in != null ? in.decimals : 18));
+
+					return a;
+				}
+			}
+		}
+		
+		// DEX: Uniswap V3 exactOutputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 deadline,uint256 amountOut,uint256 amountInMaximum,uint160 sqrtPriceLimitX96))
+		if (dataHex.length() >= 8 + 8 * 64 && dataHex.startsWith(V3_EXACT_OUTPUT_SINGLE)) {
+
+			String tokenInAddr  = addrFromWord(hexWord(dataHex, 0));
+			String tokenOutAddr = addrFromWord(hexWord(dataHex, 1));
+			java.math.BigInteger amountOut = uintFromWord(hexWord(dataHex, 5));
+
+			TokenInfo in  = lookupToken(chainId, tokenInAddr);
+			TokenInfo out = lookupToken(chainId, tokenOutAddr);
+
+			a.kind = "dex.swap";
+			a.recipient = toAddr;
+			a.selector = dataHex.substring(0, 8);
+
+			// TokenA = known token (output)
+			a.tokenSymbol = (out != null ? out.symbol : "ERC20");
+			a.tokenSymbolOut = (in != null ? in.symbol : "ERC20");
+			a.humanAmount = formatUnits(amountOut, (out != null ? out.decimals : 18));
+
+			return a;
+		}
+		
+		// DEX: Uniswap V3 exactOutput((bytes path,address recipient,uint256 deadline,uint256 amountOut,uint256 amountInMaximum))
+		if (dataHex.length() >= 8 + 5 * 64 && dataHex.startsWith(V3_EXACT_OUTPUT)) {
+
+			int pathOffsetBytes = safeIntFromBig(uintFromWord(hexWord(dataHex, 0)));
+			String pathHex = readDynamicBytesHex(dataHex, pathOffsetBytes);
+			if (pathHex != null) {
+				String[] firstLast = parseV3PathTokens(pathHex, true);
+				if (firstLast != null) {
+					// For exactOutput: first in bytes = tokenOut, last in bytes = tokenIn
+					String tokenOutAddr = firstLast[0];
+					String tokenInAddr  = firstLast[1];
+
+					java.math.BigInteger amountOut = uintFromWord(hexWord(dataHex, 3));
+	
+					TokenInfo in  = lookupToken(chainId, tokenInAddr);
+					TokenInfo out = lookupToken(chainId, tokenOutAddr);
+
+					a.kind = "dex.swap";
+					a.recipient = toAddr;
+					a.selector = dataHex.substring(0, 8);
+
+					a.tokenSymbol = (out != null ? out.symbol : "ERC20");    // known
+					a.tokenSymbolOut = (in != null ? in.symbol : "ERC20");
+					a.humanAmount = formatUnits(amountOut, (out != null ? out.decimals : 18));
+
+					return a;
+				}
+			}
+		}
+
+		a.kind = "contract.call";
         a.recipient = toAddr;
         a.selector = (dataHex.length() >= 8) ? dataHex.substring(0, 8) : null;
         return a;
     }
 
-private static String buildHumanJson(long chainId, String toAddr, String valueEth, Action action) {
-    String token = "ETH";
-    String amount = valueEth;
-    String to = toAddr;
+	private static String buildHumanJson(long chainId, String toAddr, String valueEth, Action action) {
+		String token = "ETH";
+		String amount = valueEth;
+		String to = toAddr;
 
-    String summary;
+		String summary;
 
-    if ("erc20.transfer".equals(action.kind)) {
-        token = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
-        amount = (action.humanAmount != null ? action.humanAmount : "0");
-        to = action.recipient;
-        summary = "Send " + amount + " " + token + " to " + (to == null ? "(unknown)" : to);
+		if ("erc20.transfer".equals(action.kind)) {
+			token = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
+			amount = (action.humanAmount != null ? action.humanAmount : "0");
+			to = action.recipient;
+			summary = "Send " + amount + " " + token + " to " + (to == null ? "(unknown)" : to);
 
-    } else if ("erc20.approve".equals(action.kind)) {
-        token = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
-        amount = (action.humanAmount != null ? action.humanAmount : "0");
-        to = action.recipient; // spender
+		} else if ("erc20.approve".equals(action.kind)) {
+			token = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
+			amount = (action.humanAmount != null ? action.humanAmount : "0");
+			to = action.recipient; // spender
 
-        if ("Unlimited".equalsIgnoreCase(amount)) {
-            summary = "Approve unlimited " + token + " spend for " + (to == null ? "(unknown)" : to);
-        } else {
-            summary = "Approve " + amount + " " + token + " spend for " + (to == null ? "(unknown)" : to);
-        }
+			if ("Unlimited".equalsIgnoreCase(amount)) {
+				summary = "Approve unlimited " + token + " spend for " + (to == null ? "(unknown)" : to);
+			} else {
+				summary = "Approve " + amount + " " + token + " spend for " + (to == null ? "(unknown)" : to);
+			}
 
-    } else if ("eth.transfer".equals(action.kind)) {
-        to = action.recipient;
-        summary = "Send " + valueEth + " ETH to " + (to == null ? "(unknown)" : to);
+		} else if ("dex.swap".equals(action.kind)) {
+			String tokenA = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
+			String tokenB = (action.tokenSymbolOut != null ? action.tokenSymbolOut : "ERC20");
+			String known = (action.humanAmount != null ? action.humanAmount : "0");
+			summary = "Swap " + known + " " + tokenA + " for " + tokenB;
 
-    } else if ("contract.call".equals(action.kind)) {
-        summary = "Contract call to " + (toAddr == null ? "(unknown)" : toAddr)
-                + (action.selector != null ? (" (selector " + action.selector + ")") : "");
+		} else if ("eth.transfer".equals(action.kind)) {
+			to = action.recipient;
+			summary = "Send " + valueEth + " ETH to " + (to == null ? "(unknown)" : to);
 
-    } else {
-        summary = "Review carefully on your device.";
-    }
+		} else if ("contract.call".equals(action.kind)) {
+			summary = "Contract call to " + (toAddr == null ? "(unknown)" : toAddr)
+					+ (action.selector != null ? (" (selector " + action.selector + ")") : "");
 
-    String toJson = (to == null ? "null" : ("\"" + escapeJson(to) + "\""));
+		} else {
+			summary = "Review carefully on your device.";
+		}
 
-    String detailsJson =
-            "{"
-                    + "\"kind\":\"" + escapeJson(action.kind) + "\""
-                    + ",\"to\":" + toJson
-                    + ",\"recipient\":" + toJson
-                    + (action.selector != null ? (",\"selector\":\"" + escapeJson(action.selector) + "\"") : "")
-                    + "}";
+		String toJson = (to == null ? "null" : ("\"" + escapeJson(to) + "\""));
 
-    String feesJson = "{}";
+		String detailsJson =
+				"{"
+						+ "\"kind\":\"" + escapeJson(action.kind) + "\""
+						+ ",\"to\":" + toJson
+						+ ",\"recipient\":" + toJson
+						+ (action.selector != null ? (",\"selector\":\"" + escapeJson(action.selector) + "\"") : "")
+						+ "}";
 
-    return "{"
-            + "\"fromAddress\":null,"
-            + "\"toAddress\":" + toJson + ","
-            + "\"recipient\":" + toJson + ","
-            + "\"to\":" + toJson + ","
-            + "\"token\":\"" + escapeJson(token) + "\","
-            + "\"amount\":\"" + escapeJson(amount) + "\","
-            + "\"details\":" + detailsJson + ","
-            + "\"fees\":" + feesJson + ","
-            + "\"summary\":\"" + escapeJson(summary) + "\""
-            + "}";
-}
+		String feesJson = "{}";
+
+		return "{"
+				+ "\"fromAddress\":null,"
+				+ "\"toAddress\":" + toJson + ","
+				+ "\"recipient\":" + toJson + ","
+				+ "\"to\":" + toJson + ","
+				+ "\"token\":\"" + escapeJson(token) + "\","
+				+ "\"amount\":\"" + escapeJson(amount) + "\","
+				+ "\"details\":" + detailsJson + ","
+				+ "\"fees\":" + feesJson + ","
+				+ "\"summary\":\"" + escapeJson(summary) + "\""
+				+ "}";
+	}
+	
+	
     // --------------------------
     // Static asset serving
     // --------------------------
