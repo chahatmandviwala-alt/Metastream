@@ -824,6 +824,87 @@ private static byte[] pad32(byte[] b) {
         return out.stripTrailingZeros().toPlainString();
     }
 
+    // ---- ERC20 token metadata (symbol/decimals) ----
+    private static class TokenInfo {
+        final String symbol;
+        final int decimals;
+        TokenInfo(String symbol, int decimals) {
+            this.symbol = symbol;
+            this.decimals = decimals;
+        }
+    }
+
+    // Key format: "<chainId>:<contractAddressLowercase>"
+    // Note: keep addresses lowercase to avoid mismatches.
+    private static final java.util.Map<String, TokenInfo> TOKEN_DECIMALS = new java.util.HashMap<>();
+    static {
+        // =========================
+        // Ethereum Mainnet (1)
+        // =========================
+        // Stablecoins
+        TOKEN_DECIMALS.put("1:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", new TokenInfo("USDC", 6));
+        TOKEN_DECIMALS.put("1:0xdac17f958d2ee523a2206206994597c13d831ec7", new TokenInfo("USDT", 6));
+        TOKEN_DECIMALS.put("1:0x6b175474e89094c44da98b954eedeac495271d0f", new TokenInfo("DAI", 18));
+        TOKEN_DECIMALS.put("1:0xdc035d45d973e3ec169d2276ddab16f1e407384f", new TokenInfo("USDS", 18));
+
+        // ETH derivatives
+        TOKEN_DECIMALS.put("1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", new TokenInfo("WETH", 18));
+        TOKEN_DECIMALS.put("1:0xae7ab96520de3a18e5e111b5eaab095312d7fe84", new TokenInfo("stETH", 18));
+        TOKEN_DECIMALS.put("1:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0", new TokenInfo("wstETH", 18));
+        TOKEN_DECIMALS.put("1:0xcd5fe23c85820f7b72d0926fc9b05b43e359b7ee", new TokenInfo("weETH", 18));
+
+        // BTC derivatives
+        TOKEN_DECIMALS.put("1:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", new TokenInfo("WBTC", 8));
+        TOKEN_DECIMALS.put("1:0x66eff5221ca926636224650fd3b9c497ff828f7d", new TokenInfo("multiBTC", 8));
+        TOKEN_DECIMALS.put("1:0x9be89d2a4cd102d8fecc6bf9da793be995c22541", new TokenInfo("cbBTC", 8));
+
+        // Other wrapped assets
+        TOKEN_DECIMALS.put("1:0xb8c77482e45f1f44de1745f52c74426c631bdd52", new TokenInfo("BNB", 18));
+        TOKEN_DECIMALS.put("1:0xa2e3356610840701bdf5611a53974510ae27e2e1", new TokenInfo("WBETH", 18));
+
+        // DeFi
+        TOKEN_DECIMALS.put("1:0x514910771af9ca656af840dff83e8264ecf986ca", new TokenInfo("LINK", 18));
+        TOKEN_DECIMALS.put("1:0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", new TokenInfo("UNI", 18));
+        TOKEN_DECIMALS.put("1:0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9", new TokenInfo("AAVE", 18));
+
+        // Memes
+        TOKEN_DECIMALS.put("1:0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce", new TokenInfo("SHIB", 18));
+
+        // Commodities
+        TOKEN_DECIMALS.put("1:0x68749665ff8d2d112fa859aa293f07a622782f38", new TokenInfo("XAUT", 6));
+        TOKEN_DECIMALS.put("1:0x45804880de22913dafe09f4980848ece6ecbaf78", new TokenInfo("PAXG", 18));
+
+        // =========================
+        // Base (8453)
+        // =========================
+        TOKEN_DECIMALS.put("8453:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", new TokenInfo("USDC", 6));
+        TOKEN_DECIMALS.put("8453:0x4200000000000000000000000000000000000006", new TokenInfo("WETH", 18));
+        TOKEN_DECIMALS.put("8453:0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452", new TokenInfo("wstETH", 18));
+        TOKEN_DECIMALS.put("8453:0x820c137fa70c8691f0e44dc420a5e53c168921dc", new TokenInfo("USDS", 18));
+        TOKEN_DECIMALS.put("8453:0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf", new TokenInfo("cbBTC", 8));
+        TOKEN_DECIMALS.put("8453:0x50c5725949a6f0c72e6c4a641f24049a917db0cb", new TokenInfo("DAI", 18));
+
+        // =========================
+        // Arbitrum One (42161)
+        // =========================
+        TOKEN_DECIMALS.put("42161:0xaf88d065e77c8cc2239327c5edb3a432268e5831", new TokenInfo("USDC", 6));
+        TOKEN_DECIMALS.put("42161:0x82af49447d8a07e3bd95bd0d56f35241523fbab1", new TokenInfo("WETH", 18));
+        TOKEN_DECIMALS.put("42161:0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f", new TokenInfo("WBTC", 8));
+        TOKEN_DECIMALS.put("42161:0x5979d7b546e38e414f7e9822514be443a4800529", new TokenInfo("wstETH", 18));
+        TOKEN_DECIMALS.put("42161:0x6491c05a82219b8d1479057361ff1654749b876b", new TokenInfo("USDS", 18));
+        TOKEN_DECIMALS.put("42161:0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf", new TokenInfo("cbBTC", 8));
+        TOKEN_DECIMALS.put("42161:0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9", new TokenInfo("USDT0", 6));
+        TOKEN_DECIMALS.put("42161:0xfa7f8980b0f1e64a2062791cc3b0871572f1f7f0", new TokenInfo("UNI", 18));
+        TOKEN_DECIMALS.put("42161:0x912ce59144191c1204e64559fe8253a0e49e6548", new TokenInfo("ARB", 18));
+        TOKEN_DECIMALS.put("42161:0xf97f4df75117a78c1a5a0dbb814af92458539fb4", new TokenInfo("LINK", 18));
+    }
+
+    private static TokenInfo lookupToken(long chainId, String contractAddr0x) {
+        if (contractAddr0x == null) return null;
+        String key = chainId + ":" + contractAddr0x.toLowerCase();
+        return TOKEN_DECIMALS.get(key);
+    }
+
     private static class Action {
         String kind;
         String recipient;
@@ -854,8 +935,11 @@ private static byte[] pad32(byte[] b) {
 
             a.kind = "erc20.transfer";
             a.recipient = recipient;
-            a.tokenSymbol = "ERC20";
-            a.humanAmount = formatUnits(amountRaw, 18);
+
+            TokenInfo ti = lookupToken(chainId, toAddr);
+            a.tokenSymbol = (ti != null ? ti.symbol : "ERC20");
+            a.humanAmount = formatUnits(amountRaw, (ti != null ? ti.decimals : 18));
+
             return a;
         }
 
