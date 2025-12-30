@@ -26,6 +26,8 @@ import java.util.zip.CRC32;
 
 import fi.iki.elonen.NanoHTTPD;
 
+import com.bc.ur.UR;
+import com.bc.ur.URDecoder;
 /**
  * Local offline HTTP server:
  *   - Serves web UI from android_asset/ (copied from /public at build time)
@@ -43,6 +45,10 @@ public class AssetHttpServer extends NanoHTTPD {
 
     private final Context appContext;
     private final AssetManager assets;
+
+	// ---- UR multipart decoder state (Android only) ----
+	private URDecoder urDecoder = null;
+	private UR lastCompletedUr = null;
 
     // --- UR collector state (Tool 2) ---
     private volatile String lastUrType = null;
