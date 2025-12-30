@@ -986,21 +986,26 @@ private static String buildHumanJson(long chainId, String toAddr, String valueEt
         amount = (action.humanAmount != null ? action.humanAmount : "0");
         to = action.recipient;
         summary = "Send " + amount + " " + token + " to " + (to == null ? "(unknown)" : to);
+
     } else if ("erc20.approve".equals(action.kind)) {
         token = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
         amount = (action.humanAmount != null ? action.humanAmount : "0");
         to = action.recipient; // spender
-        if ("unlimited".equalsIgnoreCase(amount)) {
+
+        if ("Unlimited".equalsIgnoreCase(amount)) {
             summary = "Approve unlimited " + token + " spend for " + (to == null ? "(unknown)" : to);
         } else {
             summary = "Approve " + amount + " " + token + " spend for " + (to == null ? "(unknown)" : to);
         }
+
     } else if ("eth.transfer".equals(action.kind)) {
         to = action.recipient;
         summary = "Send " + valueEth + " ETH to " + (to == null ? "(unknown)" : to);
+
     } else if ("contract.call".equals(action.kind)) {
         summary = "Contract call to " + (toAddr == null ? "(unknown)" : toAddr)
                 + (action.selector != null ? (" (selector " + action.selector + ")") : "");
+
     } else {
         summary = "Review carefully on your device.";
     }
@@ -1029,7 +1034,6 @@ private static String buildHumanJson(long chainId, String toAddr, String valueEt
             + "\"summary\":\"" + escapeJson(summary) + "\""
             + "}";
 }
-
     // --------------------------
     // Static asset serving
     // --------------------------
