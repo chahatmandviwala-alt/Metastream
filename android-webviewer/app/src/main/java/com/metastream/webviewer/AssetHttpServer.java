@@ -905,6 +905,9 @@ private static byte[] pad32(byte[] b) {
         return TOKEN_DECIMALS.get(key);
     }
 
+    private static final java.math.BigInteger MAX_UINT256 =
+            new java.math.BigInteger("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16);
+
     private static class Action {
         String kind;
         String recipient;
@@ -943,6 +946,28 @@ private static byte[] pad32(byte[] b) {
             return a;
         }
 
+        // ERC20 approve selector: 095ea7b3 (approve(address,uint256))
+        if (dataHex.length() == 8 + 64 + 64 && dataHex.startsWith("095ea7b3")) {
+            String spenderArg = dataHex.substring(8, 8 + 64);
+            String amtArg = dataHex.substring(8 + 64, 8 + 128);
+
+            String spender = "0x" + spenderArg.substring(24);
+            java.math.BigInteger amountRaw = new java.math.BigInteger(amtArg, 16);
+
+            a.kind = "erc20.approve";
+            // reuse recipient field to represent spender for approvals
+            a.recipient = spender;
+
+            TokenInfo ti = lookupToken(chainId, toAddr);
+            a.tokenSymbol = (ti != null ? ti.symbol : "ERC20");
+            if (amountRaw.equals(MAX_UINT256)) {
+                a.humanAmount = "Unlimited";
+            } else {
+                a.humanAmount = formatUnits(amountRaw, (ti != null ? ti.decimals : 18));
+            }
+            return a;
+        }
+
         a.kind = "contract.call";
         a.recipient = toAddr;
         a.selector = (dataHex.length() >= 8) ? dataHex.substring(0, 8) : null;
@@ -961,6 +986,15 @@ private static String buildHumanJson(long chainId, String toAddr, String valueEt
         amount = (action.humanAmount != null ? action.humanAmount : "0");
         to = action.recipient;
         summary = "Send " + amount + " " + token + " to " + (to == null ? "(unknown)" : to);
+    } else if ("erc20.approve".equals(action.kind)) {
+        token = (action.tokenSymbol != null ? action.tokenSymbol : "ERC20");
+        amount = (action.humanAmount != null ? action.humanAmount : "0");
+        to = action.recipient; // spender
+        if ("unlimited".equalsIgnoreCase(amount)) {
+            summary = "Approve unlimited " + token + " spend for " + (to == null ? "(unknown)" : to);
+        } else {
+            summary = "Approve " + amount + " " + token + " spend for " + (to == null ? "(unknown)" : to);
+        }
     } else if ("eth.transfer".equals(action.kind)) {
         to = action.recipient;
         summary = "Send " + valueEth + " ETH to " + (to == null ? "(unknown)" : to);
