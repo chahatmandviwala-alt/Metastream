@@ -26,8 +26,9 @@ import java.util.zip.CRC32;
 
 import fi.iki.elonen.NanoHTTPD;
 
-import com.bc.ur.UR;
-import com.bc.ur.URDecoder;
+import com.sparrowwallet.hummingbird.ResultType;
+import com.sparrowwallet.hummingbird.UR;
+import com.sparrowwallet.hummingbird.URDecoder;
 /**
  * Local offline HTTP server:
  *   - Serves web UI from android_asset/ (copied from /public at build time)
@@ -285,21 +286,31 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
 
     	try {
         	// Feed one animated UR frame
-        	urDecoder.receivePart(part);
+        	// Feed one animated UR frame
+			urDecoder.receivePart(part);
 
-        	if (!urDecoder.isComplete()) {
-            	return jsonOk("{\"status\":\"collecting\"}");
-        	}
+			// Hummingbird: result is available only when complete (or error)
+			URDecoder.Result res = urDecoder.getResult();
+			if (res == null) {
+    			return jsonOk("{\"status\":\"collecting\"}");
+			}
 
-        	// Complete: assembled UR is available
-        	UR ur = urDecoder.resultUR();
-        	lastCompletedUr = ur;
+			if (res.type != ResultType.SUCCESS) {
+    			// Reset so next scan can start cleanly
+    			urDecoder = new URDecoder();
+    			lastCompletedUr = null;
+    			return jsonOk("{\"status\":\"error\"}");
+			}
 
-        	// Populate your existing cache for /api/ur/decoded
-        	lastUrType = ur.getType();
-        	lastUrCbor = ur.getCbor();
+			// Complete: assembled UR is available
+			UR ur = res.ur;
+			lastCompletedUr = ur;
 
-        	return jsonOk("{\"status\":\"complete\"}");
+			// Populate your existing cache for /api/ur/decoded
+			lastUrType = ur.getType();
+			lastUrCbor = ur.toBytes();
+
+			return jsonOk("{\"status\":\"complete\"}");
 
     	} catch (Exception ex) {
         	// Reset decoder so the next scan session can proceed cleanly
