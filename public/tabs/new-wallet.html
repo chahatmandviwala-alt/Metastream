@@ -148,17 +148,20 @@
   }
 
   /* Result formatting */
-  .result-line{
-    display:flex;
-    gap: 10px;
-    align-items:flex-start;
-    justify-content: space-between;
-    padding: 10px 10px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 10px; /* spacing between lines */
-    background: transparent;
-  }
+.result-line{
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: flex-start; /* not space-between */
+  padding: 20px 14px;
+  padding-right: 8px; /* reserve visual space so text doesn't sit under buttons */
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background: transparent;
+  width: 100%;
+}
 
   .result-line:last-child{ margin-bottom: 0; }
 
@@ -214,12 +217,19 @@
   }
 
   /* Actions (copy / reveal) */
-  .line-actions{
-    display:flex;
-    gap: 8px;
-    opacity: 0;
-    transition: opacity 120ms ease;
-    flex: 0 0 auto;
+.line-actions{
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+  .result-value{
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .result-line:hover .line-actions{ opacity: 1; }
@@ -705,7 +715,7 @@
         <div class="result-line" data-kind="address">
           <div class="result-left">
             <div class="result-label"><span>Address</span></div>
-            <div class="result-value trunc" title="Click to expand" data-expand="true">${escapeHtml(address)}</div>
+            <div class="result-value" title="Click to expand" data-expand="true">${escapeHtml(address)}</div>
           </div>
           <div class="line-actions" aria-label="Address actions">
             <button class="icon-btn" type="button" data-action="copy" data-value="${escapeHtml(address)}" aria-label="Copy address">${ICONS.copy}</button>
@@ -972,6 +982,5 @@
   </script>
 </body>
 </html>
-
 
 
