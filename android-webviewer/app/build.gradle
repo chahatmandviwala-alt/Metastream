@@ -36,9 +36,8 @@ dependencies {
 
     implementation 'com.sparrowwallet:hummingbird:1.7.4'
 
-    implementation "com.github.KeystoneHQ:library:0.7.1"
-
 }
+
 
 
 
