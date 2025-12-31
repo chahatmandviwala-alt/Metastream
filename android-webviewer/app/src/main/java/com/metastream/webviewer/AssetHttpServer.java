@@ -273,30 +273,69 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
         	return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
     	}
 
-    	// Hummingbird expects the full "ur:..." fragment text
-    	String fragment = part.toLowerCase(Locale.ROOT);
-
-    	if (!fragment.startsWith("ur:")) {
+    	if (!part.startsWith("ur:") && !part.startsWith("UR:")) {
         	return jsonOk("{\"status\":\"error\",\"error\":\"invalid ur\"}");
     	}
 
-    	URDecoder.Result result;
-    	synchronized (urLock) {
-        	urDecoder.receivePart(fragment);
-        	result = urDecoder.getResult();
+    	// ============================================================
+    	// PRIMARY PATH: Hummingbird (animated + single-part UR v2)
+    	// ============================================================
+    	try {
+        	URDecoder.Result result;
+        	synchronized (urLock) {
+            	urDecoder.receivePart(part);
+            	result = urDecoder.getResult();
+        	}
+
+        	if (result == null) {
+            	return jsonOk("{\"status\":\"collecting\"}");
+	        }
+
+        	if (result.type == ResultType.SUCCESS) {
+            	UR ur = result.ur;
+
+            	byte[] decoded = ur.toBytes();
+            	String type = ur.getType();
+
+            	synchronized (urLock) {
+                	lastUrType = type;
+                	lastUrCbor = decoded;
+            	}
+
+            	boolean ok = "eth-sign-request".equals(type);
+
+            	return jsonOk("{"
+                    	+ "\"status\":\"complete\","
+                    	+ "\"type\":\"" + escapeJson(type) + "\","
+                    	+ "\"cborHex\":\"" + bytesToHex(decoded) + "\","
+                    	+ "\"ok\":" + (ok ? "true" : "false")
+                    	+ "}");
+        	} else {
+            	String err = (result.error != null ? result.error : "ur decode failed");
+            	return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(err) + "\"}");
+        	}
     	}
+    	// ============================================================
+    	// FALLBACK PATH: OLD single-part ByteWords decoding (restores normal QR)
+    	// ============================================================
+    	catch (Throwable t) {
+        	// This is intentionally broad to avoid breaking scanning UX
 
-    	if (result == null) {
-        	// Still collecting animated parts
-        	return jsonOk("{\"status\":\"collecting\"}");
-    	}
+        	String lower = part.toLowerCase(Locale.ROOT);
+        	int sep = lower.indexOf('/');
+        	if (sep <= 3) {
+            	return jsonOk("{\"status\":\"error\",\"error\":\"invalid ur\"}");
+        	}
 
-    	// Result is available (success or failure)
-    	if (result.type == ResultType.SUCCESS) {
-        	UR ur = result.ur;
+        	String type = lower.substring(3, sep);
+        	String bw = lower.substring(sep + 1);
 
-        	byte[] decoded = ur.toBytes();
-        	String type = ur.getType();
+        	byte[] decoded;
+        	try {
+            	decoded = bytewordsMinimalDecodeWithCrc(bw);
+        	} catch (Exception e1) {
+            	decoded = bytewordsStandardDecodeWithCrc(bw);
+        	}
 
         	synchronized (urLock) {
             	lastUrType = type;
@@ -305,18 +344,12 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
 
         	boolean ok = "eth-sign-request".equals(type);
 
-        	String json =
-                	"{"
-                        	+ "\"status\":\"complete\","
-                        	+ "\"type\":\"" + escapeJson(type) + "\","
-                        	+ "\"cborHex\":\"" + bytesToHex(decoded) + "\","
-                        	+ "\"ok\":" + (ok ? "true" : "false")
-                        	+ "}";
-        	return jsonOk(json);
-    	} else {
-        	// Failure (or other non-success states)
-        	String err = (result.error != null ? result.error : "ur decode failed");
-        	return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(err) + "\"}");
+        	return jsonOk("{"
+                	+ "\"status\":\"complete\","
+                	+ "\"type\":\"" + escapeJson(type) + "\","
+                	+ "\"cborHex\":\"" + bytesToHex(decoded) + "\","
+                	+ "\"ok\":" + (ok ? "true" : "false")
+                	+ "}");
     	}
 	}
 
@@ -1791,5 +1824,6 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
