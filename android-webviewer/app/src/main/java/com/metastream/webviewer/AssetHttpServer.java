@@ -325,12 +325,12 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
 
 		// Parse multipart index: UR:TYPE/<total>-<index>/...
 		// Example: UR:ETH-SIGN-REQUEST/249-5/....
-		String lower = part.toLowerCase(Locale.ROOT);
-		int firstSlash = lower.indexOf('/');
+		String lowerPart = part.toLowerCase(Locale.ROOT);
+		int firstSlash = lowerPart.indexOf('/');
 		if (firstSlash > 0) {
- 		   int secondSlash = lower.indexOf('/', firstSlash + 1);
+ 		   int secondSlash = lowerPart.indexOf('/', firstSlash + 1);
 		    if (secondSlash > firstSlash) {
-     		   String seq = lower.substring(firstSlash + 1, secondSlash); // "249-5"
+     		   String seq = lowerPart.substring(firstSlash + 1, secondSlash); // "249-5"
  		       int dash = seq.indexOf('-');
      		   if (dash > 0) {
             	try {
@@ -1942,6 +1942,7 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
 
