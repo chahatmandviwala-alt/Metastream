@@ -56,6 +56,11 @@ public class AssetHttpServer extends NanoHTTPD {
 	private URDecoder urDecoder = new URDecoder();
 	private LegacyURDecoder legacyUrDecoder = new LegacyURDecoder();
 
+	// Debug counters for UR scanning (Android only)
+	private volatile long urPartsReceived = 0;
+	private volatile String lastUrPart = null;
+	private volatile long lastUrPartAtMs = 0;
+
     public AssetHttpServer(Context context) {
         super("127.0.0.1", PORT);
         this.appContext = context.getApplicationContext();
@@ -125,9 +130,31 @@ if (uri.startsWith("/api/")) {
         	lastUrCbor = null;
         	urDecoder = new URDecoder();
 			legacyUrDecoder = new LegacyURDecoder();
+			urPartsReceived = 0;
+			lastUrPart = null;
+			lastUrPartAtMs = 0;
     	}
     	return jsonOk("{\"ok\":true}");
 	}
+	
+	if ("/api/debug/ur".equals(uri) && method == Method.GET) {
+    	long count = urPartsReceived;
+    	String last = (lastUrPart == null) ? "" : lastUrPart;
+    	long at = lastUrPartAtMs;
+
+    	// Keep response small: only the prefix of the last part
+    	String prefix = last;
+    	if (prefix.length() > 80) prefix = prefix.substring(0, 80);
+
+    	String json = "{"
+            	+ "\"partsReceived\":" + count + ","
+            	+ "\"lastPartPrefix\":\"" + escapeJson(prefix) + "\","
+            	+ "\"lastPartAtMs\":" + at
+            	+ "}";
+
+    	return jsonOk(json);
+	}
+
     if ("/api/ur/part".equals(uri) && method == Method.POST) {
         return handleApiUrPart(postData);
     }
@@ -272,6 +299,11 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
     // --------------------------
     private Response handleApiUrPart(String body) throws Exception {
     	String part = jsonGetString(body, "part", "").trim();
+		// ---- C) DEBUG COUNTERS (ADD HERE) ----
+    	urPartsReceived++;
+    	lastUrPart = part;
+    	lastUrPartAtMs = System.currentTimeMillis();
+    	// -------------------------------------
     	if (part.isEmpty()) {
         	return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
     	}
@@ -1861,6 +1893,7 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
 
