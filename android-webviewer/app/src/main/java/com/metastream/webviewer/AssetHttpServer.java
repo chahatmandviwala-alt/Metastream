@@ -64,6 +64,8 @@ public class AssetHttpServer extends NanoHTTPD {
 	private volatile int urExpectedTotal = 0;
 	private final java.util.HashSet<Integer> urUniqueIndexes = new java.util.HashSet<>();
 
+	private volatile int urLastParsedTotal = 0;
+	private volatile int urLastParsedIndex = 0;
 
     public AssetHttpServer(Context context) {
         super("127.0.0.1", PORT);
@@ -139,6 +141,8 @@ if (uri.startsWith("/api/")) {
 			lastUrPartAtMs = 0;
 			urExpectedTotal = 0;
 			urUniqueIndexes.clear();
+			urLastParsedTotal = 0;
+			urLastParsedIndex = 0;
     	}
     	return jsonOk("{\"ok\":true}");
 	}
@@ -150,6 +154,8 @@ if (uri.startsWith("/api/")) {
     	long at;
     	int total;
     	int unique;
+		int lastTotal;
+		int lastIndex;
 
     	synchronized (urLock) {
         	count = urPartsReceived;
@@ -157,6 +163,8 @@ if (uri.startsWith("/api/")) {
         	at = lastUrPartAtMs;
         	total = urExpectedTotal;
         	unique = urUniqueIndexes.size();
+			lastTotal = urLastParsedTotal;
+    		lastIndex = urLastParsedIndex;
     	}
 
     	// Keep response small: only the prefix of the last part
@@ -169,6 +177,8 @@ if (uri.startsWith("/api/")) {
             	+ "\"uniqueParts\":" + unique + ","
             	+ "\"lastPartPrefix\":\"" + escapeJson(prefix) + "\","
             	+ "\"lastPartAtMs\":" + at
+				+ "\"lastParsedTotal\":" + lastTotal + ","
+				+ "\"lastParsedIndex\":" + lastIndex + ","
             	+ "}";
 
     	return jsonOk(json);
@@ -338,13 +348,33 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
                 	int idx = Integer.parseInt(seq.substring(dash + 1));
 
                 	synchronized (urLock) {
-                    	if (urExpectedTotal == 0) urExpectedTotal = total;
+    					urLastParsedTotal = total;
+    					urLastParsedIndex = idx;
 
-                    	// Deduplicate: if we've already seen this index, do not feed decoder again
-                    	if (!urUniqueIndexes.add(idx)) {
-                        	return jsonOk("{\"status\":\"collecting\"}");
-                    		}
-                		}
+    					// If total changes mid-scan, treat it as a new stream and reset everything
+    					if (urExpectedTotal != 0 && urExpectedTotal != total) {
+        					urExpectedTotal = total;
+        					urUniqueIndexes.clear();
+
+        					// Reset decoders too so they don't mix streams
+        					urDecoder = new URDecoder();
+        					legacyUrDecoder = new LegacyURDecoder();
+
+        					// Count this index as the first unique part of the new stream
+        					urUniqueIndexes.add(idx);
+        					return jsonOk("{\"status\":\"collecting\"}");
+    					}
+
+    					if (urExpectedTotal == 0) {
+        					urExpectedTotal = total;
+    					}
+
+    					// Deduplicate by index
+    					if (!urUniqueIndexes.add(idx)) {
+        					return jsonOk("{\"status\":\"collecting\"}");
+    					}
+					}
+
             		} catch (NumberFormatException ignored) {
                 		// If parsing fails, proceed without dedupe
             		}
@@ -1942,6 +1972,7 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
 
