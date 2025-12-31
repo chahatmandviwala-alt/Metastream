@@ -283,7 +283,7 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
     	try {
         	URDecoder.Result result;
         	synchronized (urLock) {
-            	urDecoder.receivePart(part);
+            	urDecoder.receivePart(part.toLowerCase(Locale.ROOT));
             	result = urDecoder.getResult();
         	}
 
@@ -1824,6 +1824,7 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
 
