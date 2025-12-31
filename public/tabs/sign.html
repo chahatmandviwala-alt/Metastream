@@ -1574,8 +1574,13 @@
         try {
           await resetServerDecoder();
           if (!html5QrCode) html5QrCode = new Html5Qrcode('reader');
-          const configs = { fps: 12, qrbox: { width: 220, height: 220 } };
-          await html5QrCode.start({ facingMode: 'environment' }, configs, onScanSuccess, onScanFailure);
+          const configs = {
+  			fps: 12,
+  			qrbox: { width: 220, height: 220 },
+  			experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+			};
+		  await html5QrCode.start({ facingMode: 'environment' }, configs, onScanSuccess, onScanFailure);
+
           isRunning = true;
           cameraToggleBtn.textContent = 'Stop camera';
           log('Camera started.');
