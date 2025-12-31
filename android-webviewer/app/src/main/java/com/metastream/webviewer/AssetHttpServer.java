@@ -26,6 +26,9 @@ import java.util.zip.CRC32;
 
 import fi.iki.elonen.NanoHTTPD;
 
+import com.sparrowwallet.hummingbird.UR;
+import com.sparrowwallet.hummingbird.URDecoder;
+
 /**
  * Local offline HTTP server:
  *   - Serves web UI from android_asset/ (copied from /public at build time)
@@ -47,6 +50,8 @@ public class AssetHttpServer extends NanoHTTPD {
     // --- UR collector state (Tool 2) ---
     private volatile String lastUrType = null;
     private volatile byte[] lastUrCbor = null;
+	private final Object urLock = new Object();
+	private URDecoder urDecoder = new URDecoder();
 
     public AssetHttpServer(Context context) {
         super("127.0.0.1", PORT);
@@ -112,10 +117,13 @@ if (uri.startsWith("/api/")) {
         return handleApiGen(postData);
     }
     if ("/api/ur/reset".equals(uri) && method == Method.POST) {
-        lastUrType = null;
-        lastUrCbor = null;
-        return jsonOk("{\"ok\":true}");
-    }
+    	synchronized (urLock) {
+        	lastUrType = null;
+        	lastUrCbor = null;
+        	urDecoder = new URDecoder();
+    	}
+    	return jsonOk("{\"ok\":true}");
+	}
     if ("/api/ur/part".equals(uri) && method == Method.POST) {
         return handleApiUrPart(postData);
     }
@@ -259,64 +267,57 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
     // Single-part URs: ur:<type>/<bytewords>
     // --------------------------
     private Response handleApiUrPart(String body) throws Exception {
-        String part = jsonGetString(body, "part", "").trim();
+    	String part = jsonGetString(body, "part", "").trim();
+    	if (part.isEmpty()) {
+        	return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
+    	}
 
-        if (part.isEmpty()) {
-            return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
-        }
+    	// Hummingbird expects the full "ur:..." fragment text
+    	String fragment = part.toLowerCase(Locale.ROOT);
 
-        // Normalize like server.js (lowercase)
-        String p = part.toLowerCase(Locale.ROOT);
+    	if (!fragment.startsWith("ur:")) {
+        	return jsonOk("{\"status\":\"error\",\"error\":\"invalid ur\"}");
+    	}
 
-        // Expect "ur:type/...."
-        if (!p.startsWith("ur:") || !p.contains("/")) {
-            return jsonOk("{\"status\":\"error\",\"error\":\"invalid ur\"}");
-        }
+    	URDecoder.Result result;
+    	synchronized (urLock) {
+        	urDecoder.receivePart(fragment);
+        	result = urDecoder.getResult();
+    	}
 
-        int slash = p.indexOf('/');
-        String type = p.substring(3, slash);
-        String bw = p.substring(slash + 1);
+    	if (result == null) {
+        	// Still collecting animated parts
+        	return jsonOk("{\"status\":\"collecting\"}");
+    	}
 
-        try {
-            // NOTE: This currently expects the "minimal" 2-letter encoding.
-            // Your scanned QR looks like standard bytewords; decoding may fail until we implement standard bytewords.
-            byte[] decoded;
-String bwNorm = (bw == null ? "" : bw.trim().toLowerCase(Locale.ROOT));
+    	// Result is available (success or failure)
+    	if (result.type == URDecoder.ResultType.SUCCESS) {
+        	UR ur = result.ur;
 
-// Heuristic: if it contains '-' (or any non [a-z]) it's almost certainly STANDARD
-// Otherwise try MINIMAL first, then fall back to STANDARD.
-try {
-    if (bwNorm.contains("-") || bwNorm.matches(".*[^a-z].*")) {
-        decoded = bytewordsStandardDecodeWithCrc(bwNorm);
-    } else {
-        decoded = bytewordsMinimalDecodeWithCrc(bwNorm);
-    }
-} catch (Exception first) {
-    // Fallback: try the other format
-    try {
-        decoded = bytewordsStandardDecodeWithCrc(bwNorm);
-    } catch (Exception second) {
-        throw first; // keep original error for log clarity
-    }
-}
-            lastUrType = type;
-            lastUrCbor = decoded;
+        	byte[] decoded = ur.toBytes();
+        	String type = ur.getType();
 
-            boolean ok = "eth-sign-request".equals(type);
+        	synchronized (urLock) {
+            	lastUrType = type;
+            	lastUrCbor = decoded;
+        	}
 
-            String json =
-                    "{"
-                            + "\"status\":\"complete\","
-                            + "\"type\":\"" + escapeJson(type) + "\","
-                            + "\"cborHex\":\"" + bytesToHex(decoded) + "\","
-                            + "\"ok\":" + (ok ? "true" : "false")
-                            + "}";
-            return jsonOk(json);
+        	boolean ok = "eth-sign-request".equals(type);
 
-        } catch (Exception ex) {
-            return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(msgOrDefault(ex)) + "\"}");
-        }
-    }
+        	String json =
+                	"{"
+                        	+ "\"status\":\"complete\","
+                        	+ "\"type\":\"" + escapeJson(type) + "\","
+                        	+ "\"cborHex\":\"" + bytesToHex(decoded) + "\","
+                        	+ "\"ok\":" + (ok ? "true" : "false")
+                        	+ "}";
+        	return jsonOk(json);
+    	} else {
+        	// Failure (or other non-success states)
+        	String err = (result.error != null ? result.error : "ur decode failed");
+        	return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(err) + "\"}");
+    	}
+	}
 
     private Response handleApiUrDecoded() {
         try {
@@ -1789,3 +1790,4 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
