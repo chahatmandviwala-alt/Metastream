@@ -3,8 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.journeyapps.barcodescanner.DecoratedBarcodeView
-        android:id="@+id/barcode_scanner"
+    <androidx.camera.view.PreviewView
+        android:id="@+id/preview_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
