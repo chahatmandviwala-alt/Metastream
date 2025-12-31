@@ -60,6 +60,9 @@ public class AssetHttpServer extends NanoHTTPD {
 	private volatile long urPartsReceived = 0;
 	private volatile String lastUrPart = null;
 	private volatile long lastUrPartAtMs = 0;
+	private volatile int urLastParsedTotal = 0;
+	private volatile int urLastParsedIndex = 0;
+
 
 	private volatile int urExpectedTotal = 0;
 	private final java.util.HashSet<Integer> urUniqueIndexes = new java.util.HashSet<>();
@@ -335,49 +338,35 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
 
 		// Parse multipart index: UR:TYPE/<total>-<index>/...
 		// Example: UR:ETH-SIGN-REQUEST/249-5/....
+		// Parse multipart: UR:TYPE/<total>-<index>/...
 		String lowerPart = part.toLowerCase(Locale.ROOT);
 		int firstSlash = lowerPart.indexOf('/');
-		if (firstSlash > 0) {
- 		   int secondSlash = lowerPart.indexOf('/', firstSlash + 1);
-		    if (secondSlash > firstSlash) {
-     		   String seq = lowerPart.substring(firstSlash + 1, secondSlash); // "249-5"
- 		       int dash = seq.indexOf('-');
-     		   if (dash > 0) {
-            	try {
-                	int total = Integer.parseInt(seq.substring(0, dash));
-                	int idx = Integer.parseInt(seq.substring(dash + 1));
+		int secondSlash = (firstSlash >= 0) ? lowerPart.indexOf('/', firstSlash + 1) : -1;
 
-                	synchronized (urLock) {
-    					urLastParsedTotal = total;
-    					urLastParsedIndex = idx;
+		if (firstSlash > 0 && secondSlash > firstSlash) {
+    		String seq = lowerPart.substring(firstSlash + 1, secondSlash); // e.g. "261-5"
+    		int dash = seq.indexOf('-');
+    		if (dash > 0) {
+        		try {
+            		int total = Integer.parseInt(seq.substring(0, dash));
+            		int idx = Integer.parseInt(seq.substring(dash + 1));
 
-    					// If total changes mid-scan, treat it as a new stream and reset everything
-    					if (urExpectedTotal != 0 && urExpectedTotal != total) {
-        					urExpectedTotal = total;
-        					urUniqueIndexes.clear();
+            		synchronized (urLock) {
+                		urLastParsedTotal = total;
+                		urLastParsedIndex = idx;
 
-        					// Reset decoders too so they don't mix streams
-        					urDecoder = new URDecoder();
-        					legacyUrDecoder = new LegacyURDecoder();
+                		// ALWAYS treat a new total as a new stream and reset state
+                		if (urExpectedTotal != total) {
+                    		urExpectedTotal = total;
+                    		urUniqueIndexes.clear();
+                    		urDecoder = new URDecoder();
+                    		legacyUrDecoder = new LegacyURDecoder();
+                		}
 
-        					// Count this index as the first unique part of the new stream
-        					urUniqueIndexes.add(idx);
-        					return jsonOk("{\"status\":\"collecting\"}");
-    					}
-
-    					if (urExpectedTotal == 0) {
-        					urExpectedTotal = total;
-    					}
-
-    					// Deduplicate by index
-    					if (!urUniqueIndexes.add(idx)) {
-        					return jsonOk("{\"status\":\"collecting\"}");
-    					}
-					}
-
-            		} catch (NumberFormatException ignored) {
-                		// If parsing fails, proceed without dedupe
+                		urUniqueIndexes.add(idx);
             		}
+        		} catch (NumberFormatException ignored) {
+            // ignore, continue
         		}
     		}
 		}
@@ -1972,6 +1961,7 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
 
