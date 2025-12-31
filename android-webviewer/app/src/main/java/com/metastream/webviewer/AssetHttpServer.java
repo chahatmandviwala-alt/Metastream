@@ -67,8 +67,6 @@ public class AssetHttpServer extends NanoHTTPD {
 	private volatile int urExpectedTotal = 0;
 	private final java.util.HashSet<Integer> urUniqueIndexes = new java.util.HashSet<>();
 
-	private volatile int urLastParsedTotal = 0;
-	private volatile int urLastParsedIndex = 0;
 
     public AssetHttpServer(Context context) {
         super("127.0.0.1", PORT);
@@ -1961,6 +1959,7 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
 
