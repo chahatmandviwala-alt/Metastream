@@ -68,6 +68,19 @@ public class MainActivity extends AppCompatActivity {
     private final ActivityResultLauncher<Intent> createDocumentLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::onCreateDocumentResult);
 
+    private final ActivityResultLauncher<Intent> urScanLauncher =
+        registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+            // When native scanner closes, ask the page to refresh decoded state
+            runOnUiThread(() -> {
+                if (webView != null) {
+                    webView.evaluateJavascript(
+                            "(async()=>{try{ if(window.refreshDecoded) await window.refreshDecoded(); }catch(e){} })();",
+                            null
+                    );
+                }
+            });
+        });
+
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,6 +124,7 @@ root.addView(focusSink, lp);
         webView.addJavascriptInterface(new AndroidDownloadBridge(), "AndroidDownloadBridge");
         webView.addJavascriptInterface(new AndroidImeBridge(), "AndroidImeBridge");
         webView.addJavascriptInterface(new AndroidAppBridge(), "AndroidApp");
+        webView.addJavascriptInterface(new AndroidNativeBridge(), "AndroidNative");
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -130,7 +144,8 @@ root.addView(focusSink, lp);
                 injectVkToggleHook();      // vkToggleBtn click => vkOn/vkOff
                 injectVkImeEnforcer();
                 injectVkVisibilityObserver(); // observe #vk hidden/visible (x close, esc, etc.)     // while VK open => keep IME hidden
-                installExitHook();
+                injectNativeUrScannerHook();
+                installExitHook(); 
             }
         });
 
@@ -307,6 +322,22 @@ webView.setOnTouchListener((v, event) -> {
                 "})();";
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
+
+    private void injectNativeUrScannerHook() {
+        String js =
+                "(function(){\n" +
+                "  if (window.__ms_nativeUrScanInstalled) return;\n" +
+                "  if (!window.AndroidNative || !AndroidNative.startUrScan) return;\n" +
+                "  window.__ms_nativeUrScanInstalled = true;\n" +
+                "  // Override the sign.html camera functions on Android only.\n" +
+                "  window.startCamera = async function(){\n" +
+                "    try { AndroidNative.startUrScan(); } catch(e) {}\n" +
+                "  };\n" +
+                "  window.stopCamera = async function(){ return; };\n" +
+                "})();";
+        runOnUiThread(() -> webView.evaluateJavascript(js, null));
+    }
+
 
     /**
      * Hook vkToggleBtn. We do NOT depend on aria/class state.
@@ -515,6 +546,16 @@ public final class AndroidAppBridge {
     }
 }
 
+    class AndroidNativeBridge {
+        @JavascriptInterface
+        public void startUrScan() {
+            runOnUiThread(() -> {
+                Intent i = new Intent(MainActivity.this, UrScanActivity.class);
+                urScanLauncher.launch(i);
+            });
+        }
+    }
+
     // JS bridge used by injected Exit hook.
     public final class AndroidAppBridge {
         @JavascriptInterface
@@ -533,8 +574,6 @@ public final class AndroidAppBridge {
             });
         }
     }
-
-
 
     private void restartImeNow() {
     try {
