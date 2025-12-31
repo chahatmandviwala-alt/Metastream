@@ -175,14 +175,14 @@ if (uri.startsWith("/api/")) {
     	if (prefix.length() > 80) prefix = prefix.substring(0, 80);
 
     	String json = "{"
-            	+ "\"partsReceived\":" + count + ","
-            	+ "\"expectedTotal\":" + total + ","
-            	+ "\"uniqueParts\":" + unique + ","
-            	+ "\"lastPartPrefix\":\"" + escapeJson(prefix) + "\","
-            	+ "\"lastPartAtMs\":" + at
-				+ "\"lastParsedTotal\":" + lastTotal + ","
-				+ "\"lastParsedIndex\":" + lastIndex + ","
-            	+ "}";
+        		+ "\"partsReceived\":" + count + ","
+        		+ "\"expectedTotal\":" + total + ","
+        		+ "\"uniqueParts\":" + unique + ","
+        		+ "\"lastPartPrefix\":\"" + escapeJson(prefix) + "\","
+        		+ "\"lastPartAtMs\":" + at + ","
+        		+ "\"lastParsedTotal\":" + lastTotal + ","
+        		+ "\"lastParsedIndex\":" + lastIndex
+        		+ "}";
 
     	return jsonOk(json);
 	}
@@ -1961,6 +1961,7 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
 
