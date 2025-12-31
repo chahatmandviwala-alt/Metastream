@@ -26,9 +26,10 @@ import java.util.zip.CRC32;
 
 import fi.iki.elonen.NanoHTTPD;
 
+import com.sparrowwallet.hummingbird.LegacyURDecoder;
+import com.sparrowwallet.hummingbird.ResultType;
 import com.sparrowwallet.hummingbird.UR;
 import com.sparrowwallet.hummingbird.URDecoder;
-import com.sparrowwallet.hummingbird.ResultType;
 
 /**
  * Local offline HTTP server:
@@ -53,6 +54,7 @@ public class AssetHttpServer extends NanoHTTPD {
     private volatile byte[] lastUrCbor = null;
 	private final Object urLock = new Object();
 	private URDecoder urDecoder = new URDecoder();
+	private LegacyURDecoder legacyUrDecoder = new LegacyURDecoder();
 
     public AssetHttpServer(Context context) {
         super("127.0.0.1", PORT);
@@ -122,6 +124,7 @@ if (uri.startsWith("/api/")) {
         	lastUrType = null;
         	lastUrCbor = null;
         	urDecoder = new URDecoder();
+			legacyUrDecoder = new LegacyURDecoder();
     	}
     	return jsonOk("{\"ok\":true}");
 	}
@@ -281,18 +284,30 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
     	// PRIMARY PATH: Hummingbird (animated + single-part UR v2)
     	// ============================================================
     	try {
-        	URDecoder.Result result;
-        	synchronized (urLock) {
-            	urDecoder.receivePart(part.toLowerCase(Locale.ROOT));
-            	result = urDecoder.getResult();
+    	// Normalize for UR2 decoder (Hummingbird URDecoder commonly expects normalized text)
+    	String normalized = part.toLowerCase(Locale.ROOT);
+
+    	URDecoder.Result ur2Result = null;
+    	UR legacyUr = null;
+    	boolean legacyComplete = false;
+
+    	synchronized (urLock) {
+        	// Feed UR2 decoder
+        	urDecoder.receivePart(normalized);
+        	ur2Result = urDecoder.getResult();
+
+        	// Feed legacy UR1 decoder as well
+        	legacyUrDecoder.receivePart(normalized);
+        	legacyComplete = legacyUrDecoder.isComplete();
+        	if (legacyComplete) {
+            	legacyUr = legacyUrDecoder.decode();
         	}
+    	}
 
-        	if (result == null) {
-            	return jsonOk("{\"status\":\"collecting\"}");
-	        }
-
-        	if (result.type == ResultType.SUCCESS) {
-            	UR ur = result.ur;
+    	// 1) If UR2 completed successfully, use it
+    	if (ur2Result != null) {
+        	if (ur2Result.type == ResultType.SUCCESS) {
+            	UR ur = ur2Result.ur;
 
             	byte[] decoded = ur.toBytes();
             	String type = ur.getType();
@@ -303,7 +318,6 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
             	}
 
             	boolean ok = "eth-sign-request".equals(type);
-
             	return jsonOk("{"
                     	+ "\"status\":\"complete\","
                     	+ "\"type\":\"" + escapeJson(type) + "\","
@@ -311,10 +325,33 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
                     	+ "\"ok\":" + (ok ? "true" : "false")
                     	+ "}");
         	} else {
-            	String err = (result.error != null ? result.error : "ur decode failed");
+            	String err = (ur2Result.error != null ? ur2Result.error : "ur decode failed");
             	return jsonOk("{\"status\":\"error\",\"error\":\"" + escapeJson(err) + "\"}");
         	}
     	}
+
+    	// 2) If legacy UR1 completed, use it
+    	if (legacyComplete && legacyUr != null) {
+        	byte[] decoded = legacyUr.toBytes();
+        	String type = legacyUr.getType();
+
+        	synchronized (urLock) {
+            	lastUrType = type;
+            	lastUrCbor = decoded;
+        	}
+
+        	boolean ok = "eth-sign-request".equals(type);
+        	return jsonOk("{"
+                	+ "\"status\":\"complete\","
+                	+ "\"type\":\"" + escapeJson(type) + "\","
+                	+ "\"cborHex\":\"" + bytesToHex(decoded) + "\","
+                	+ "\"ok\":" + (ok ? "true" : "false")
+                	+ "}");
+    	}
+
+    	// 3) Otherwise keep collecting
+    	return jsonOk("{\"status\":\"collecting\"}");
+	}
     	// ============================================================
     	// FALLBACK PATH: OLD single-part ByteWords decoding (restores normal QR)
     	// ============================================================
@@ -1824,6 +1861,7 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
 
