@@ -1538,7 +1538,7 @@
 
       async function onScanSuccess(decodedText) {
         const part = decodedText.trim();
-        if (!/^ur:eth-sign-request\//i.test(part)) return;
+        if (!/^ur:/i.test(part)) return;
         if (seen.has(part)) return;
         seen.add(part);
 
