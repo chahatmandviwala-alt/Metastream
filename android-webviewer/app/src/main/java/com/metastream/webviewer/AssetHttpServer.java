@@ -61,6 +61,10 @@ public class AssetHttpServer extends NanoHTTPD {
 	private volatile String lastUrPart = null;
 	private volatile long lastUrPartAtMs = 0;
 
+	private volatile int urExpectedTotal = 0;
+	private final java.util.HashSet<Integer> urUniqueIndexes = new java.util.HashSet<>();
+
+
     public AssetHttpServer(Context context) {
         super("127.0.0.1", PORT);
         this.appContext = context.getApplicationContext();
@@ -133,14 +137,27 @@ if (uri.startsWith("/api/")) {
 			urPartsReceived = 0;
 			lastUrPart = null;
 			lastUrPartAtMs = 0;
+			urExpectedTotal = 0;
+			urUniqueIndexes.clear();
     	}
     	return jsonOk("{\"ok\":true}");
 	}
 	
 	if ("/api/debug/ur".equals(uri) && method == Method.GET) {
-    	long count = urPartsReceived;
-    	String last = (lastUrPart == null) ? "" : lastUrPart;
-    	long at = lastUrPartAtMs;
+
+    	long count;
+    	String last;
+    	long at;
+    	int total;
+    	int unique;
+
+    	synchronized (urLock) {
+        	count = urPartsReceived;
+        	last = (lastUrPart == null) ? "" : lastUrPart;
+        	at = lastUrPartAtMs;
+        	total = urExpectedTotal;
+        	unique = urUniqueIndexes.size();
+    	}
 
     	// Keep response small: only the prefix of the last part
     	String prefix = last;
@@ -148,6 +165,8 @@ if (uri.startsWith("/api/")) {
 
     	String json = "{"
             	+ "\"partsReceived\":" + count + ","
+            	+ "\"expectedTotal\":" + total + ","
+            	+ "\"uniqueParts\":" + unique + ","
             	+ "\"lastPartPrefix\":\"" + escapeJson(prefix) + "\","
             	+ "\"lastPartAtMs\":" + at
             	+ "}";
@@ -303,6 +322,36 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
     	urPartsReceived++;
     	lastUrPart = part;
     	lastUrPartAtMs = System.currentTimeMillis();
+
+		// Parse multipart index: UR:TYPE/<total>-<index>/...
+		// Example: UR:ETH-SIGN-REQUEST/249-5/....
+		String lower = part.toLowerCase(Locale.ROOT);
+		int firstSlash = lower.indexOf('/');
+		if (firstSlash > 0) {
+ 		   int secondSlash = lower.indexOf('/', firstSlash + 1);
+		    if (secondSlash > firstSlash) {
+     		   String seq = lower.substring(firstSlash + 1, secondSlash); // "249-5"
+ 		       int dash = seq.indexOf('-');
+     		   if (dash > 0) {
+            	try {
+                	int total = Integer.parseInt(seq.substring(0, dash));
+                	int idx = Integer.parseInt(seq.substring(dash + 1));
+
+                	synchronized (urLock) {
+                    	if (urExpectedTotal == 0) urExpectedTotal = total;
+
+                    	// Deduplicate: if we've already seen this index, do not feed decoder again
+                    	if (!urUniqueIndexes.add(idx)) {
+                        	return jsonOk("{\"status\":\"collecting\"}");
+                    		}
+                		}
+            		} catch (NumberFormatException ignored) {
+                		// If parsing fails, proceed without dedupe
+            		}
+        		}
+    		}
+		}
+
     	// -------------------------------------
     	if (part.isEmpty()) {
         	return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
@@ -1893,6 +1942,7 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
 
 
