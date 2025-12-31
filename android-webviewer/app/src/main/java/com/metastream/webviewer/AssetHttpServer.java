@@ -28,6 +28,7 @@ import fi.iki.elonen.NanoHTTPD;
 
 import com.sparrowwallet.hummingbird.UR;
 import com.sparrowwallet.hummingbird.URDecoder;
+import com.sparrowwallet.hummingbird.ResultType;
 
 /**
  * Local offline HTTP server:
@@ -291,7 +292,7 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
     	}
 
     	// Result is available (success or failure)
-    	if (result.type == URDecoder.ResultType.SUCCESS) {
+    	if (result.type == ResultType.SUCCESS) {
         	UR ur = result.ur;
 
         	byte[] decoded = ur.toBytes();
@@ -1790,4 +1791,5 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
 
