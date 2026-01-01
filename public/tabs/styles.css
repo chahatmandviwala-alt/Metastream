@@ -1,0 +1,201 @@
+/* Base */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 8px;
+  background: #f5f6fa;
+  color: #222;
+  line-height: 1.4;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.muted {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.small {
+  font-size: 0.8rem;
+}
+
+.mono {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+/* Layout - modular cards */
+.row, .grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 16px;
+  flex: 1 1 280px; /* flexible but min-width 280px */
+  min-width: 280px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* --- NEW STYLES FOR COMPACTNESS --- */
+.card .compact-text {
+  font-size: 0.75rem; /* Smaller text inside cards */
+}
+
+.card .compact-input,
+.card .compact-button {
+  padding: 4px 6px; /* Smaller padding for inputs/buttons */
+  font-size: 0.75rem;
+}
+
+.card .compact-button.small {
+  padding: 2px 4px;
+}
+/* ----------------------------------- */
+
+
+/* Responsive: stack cards on small screens */
+@media (max-width: 640px) {
+  .row, .grid {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .card {
+    flex: 1 1 100%;
+  }
+  .actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+  #sigQr {
+    width: 140px;
+    height: 140px;
+    margin: auto;
+  }
+  #decodedSummary {
+    font-size: 0.85rem;
+  }
+}
+
+/* Buttons */
+button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  background: #4a90e2;
+  color: #fff;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: #357ab7;
+}
+
+button.secondary {
+  background: #ccc;
+  color: #222;
+}
+
+button.secondary:hover {
+  background: #aaa;
+}
+
+button.small {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+/* Inputs & Textareas */
+input, textarea {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fafafa;
+  box-sizing: border-box;
+}
+
+textarea {
+  resize: vertical;
+}
+
+/* Status / warnings */
+.warn {
+  background: #fff3cd;
+  border-left: 4px solid #ffecb5;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #856404;
+  font-size: 0.85rem;
+}
+
+.ok {
+  color: green;
+  font-weight: bold;
+}
+
+.err {
+  color: red;
+  font-weight: bold;
+}
+
+/* QR reader */
+#reader {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  margin: auto;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: #fdfdfd;
+}
+
+/* Actions container */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Preview / decoded summary */
+#decodedSummary {
+  background: #fefefe;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px;
+  overflow-x: auto; /* prevent overflow on small screens */
+}
+
+/* QR preview */
+#sigQr {
+  width: 320px; height: 320px;
+  display: grid; place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 12px; background: #fff;
+}
+
+/* Table in fees */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid #eee;
+}
