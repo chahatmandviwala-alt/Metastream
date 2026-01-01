@@ -1603,20 +1603,42 @@
       let cameraBusy = false;
 
       async function toggleCamera() {
-        if (cameraBusy) return;
-        cameraBusy = true;
-        try {
-          if (!isRunning) {
-            await startCamera();
-          } else {
-            await stopCamera();
-          }
-        } finally {
-          cameraBusy = false;
-        }
-      }
+  		// Android native path
+  		if (window.NativeBridge && typeof window.NativeBridge.startUrScan === 'function') {
+    		try {
+      		await resetServerDecoder(); // clears /api/ur/reset (still fine)
+    		} catch (_) {}
+    		window.NativeBridge.startUrScan();
+    		return;
+  		}
 
-      cameraToggleBtn.addEventListener('click', toggleCamera);
+  		// Electron/browser fallback (existing behavior)
+  		if (cameraBusy) return;
+  		cameraBusy = true;
+  		try {
+    		if (!isRunning) {
+      		await startCamera();
+    		} else {
+      		await stopCamera();
+    		}
+  		} finally {
+    		cameraBusy = false;
+  		}
+		}
+
+      window.onNativeUrDecoded = async function() {
+  		// Native has already populated the in-memory assembled UR in AssetHttpServer.
+  		// So this will now work without /api/ur/part ever being called.
+  		await refreshDecoded();
+  		// Optional: stop/hide any web camera UI state
+  		try { await stopCamera(); } catch(_) {}
+		};
+
+		window.onNativeUrScanCancelled = function() {
+  		// Optional: show a message or no-op
+		};
+
+	  cameraToggleBtn.addEventListener('click', toggleCamera);
       resetBtn.addEventListener('click', resetServerDecoder);
 
       // ---- Decoded preview ----
@@ -1860,11 +1882,15 @@ box.innerHTML = `
 
       // Initial setup: reflect wallet button state + sync heights when DOM is ready
       document.addEventListener('DOMContentLoaded', () => {
-        try { resetWalletAlertToSecurityNote(); } catch (_) {}
-        setUnlockWalletButtonLabel();
-        // After initial paint, measure and align heights
-        setTimeout(syncRightPanelHeights, 0);
-      });
+		  // Optional: reflect native scan UX
+  			if (window.NativeBridge && typeof window.NativeBridge.startUrScan === 'function') {
+    			cameraToggleBtn.textContent = 'Scan';
+  			}
+        	try { resetWalletAlertToSecurityNote(); } catch (_) {}
+        		setUnlockWalletButtonLabel();
+        		// After initial paint, measure and align heights
+        		setTimeout(syncRightPanelHeights, 0);
+      	});
 
       window.addEventListener('resize', () => {
         // Keep layout stable across viewport changes
@@ -1876,3 +1902,4 @@ box.innerHTML = `
     </script>
   </body>
 </html>
+
