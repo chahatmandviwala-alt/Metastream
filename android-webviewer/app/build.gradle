@@ -45,7 +45,10 @@ dependencies {
     // ML Kit barcode scanning
     implementation "com.google.mlkit:barcode-scanning:17.3.0"
 
+    implementation "me.dm7.barcodescanner:zbar:1.8.4"
+
 }
+
 
 
 
