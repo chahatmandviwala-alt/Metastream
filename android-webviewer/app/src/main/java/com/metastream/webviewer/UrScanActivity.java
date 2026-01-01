@@ -40,6 +40,8 @@ import androidx.core.content.ContextCompat;
 
 public class UrScanActivity extends AppCompatActivity {
 
+    private static final int REQ_CAMERA_PERMISSION = 10;
+    
     public static final String EXTRA_UR_TYPE = "ur_type";
     public static final String EXTRA_UR_CBOR = "ur_cbor";
 
@@ -73,7 +75,7 @@ public class UrScanActivity extends AppCompatActivity {
         hints.put(DecodeHintType.CHARACTER_SET, "ISO-8859-1");
         reader.setHints(hints);
 
-        startCamera();
+        ensureCameraPermissionThenStart();
     }
 
     @Override
@@ -82,6 +84,34 @@ public class UrScanActivity extends AppCompatActivity {
         if (analysisExecutor != null) analysisExecutor.shutdownNow();
     }
 
+    private void ensureCameraPermissionThenStart() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED) {
+            startCamera();
+        } else {
+            progressText.setText("Requesting camera permission…");
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.CAMERA},
+                    REQ_CAMERA_PERMISSION
+            );
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQ_CAMERA_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startCamera();
+            } else {
+                // Return to WebView; optionally alert user
+                finishWithError("Camera permission denied");
+            }
+        }
+    }
+    
     private void startCamera() {
         ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
         cameraProviderFuture.addListener(() -> {
@@ -107,6 +137,8 @@ public class UrScanActivity extends AppCompatActivity {
                 cameraProvider.bindToLifecycle(this, selector, preview, analysis);
 
             } catch (Exception e) {
+                runOnUiThread(() -> progressText.setText("Camera init failed: " + e.getMessage()));
+                // Optionally also finish:
                 finishWithError("Camera init failed: " + e.getMessage());
             }
         }, getMainExecutor());
