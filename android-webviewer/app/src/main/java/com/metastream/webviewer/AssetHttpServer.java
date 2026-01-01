@@ -48,6 +48,11 @@ public class AssetHttpServer extends NanoHTTPD {
     private volatile String lastUrType = null;
     private volatile byte[] lastUrCbor = null;
 
+	public synchronized void setAssembledUr(String urType, byte[] urCbor) {
+    	this.lastUrType = urType;
+    	this.lastUrCbor = urCbor;
+	}
+
     public AssetHttpServer(Context context) {
         super("127.0.0.1", PORT);
         this.appContext = context.getApplicationContext();
@@ -1789,3 +1794,4 @@ private static byte[] bytewordsStandardDecodeWithCrc(String text) throws Excepti
         return sb.toString();
     }
 }
+
