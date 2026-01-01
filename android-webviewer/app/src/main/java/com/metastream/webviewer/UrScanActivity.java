@@ -33,6 +33,11 @@ import com.sparrowwallet.hummingbird.UR;
 import com.sparrowwallet.hummingbird.URDecoder;
 import com.sparrowwallet.hummingbird.ResultType;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
 public class UrScanActivity extends AppCompatActivity {
 
     public static final String EXTRA_UR_TYPE = "ur_type";
