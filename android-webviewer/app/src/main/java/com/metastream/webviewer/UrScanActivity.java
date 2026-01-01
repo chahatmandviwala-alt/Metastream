@@ -86,6 +86,8 @@ public class UrScanActivity extends AppCompatActivity {
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .setTargetResolution(new Size(1280, 720))
                         .build();
+                
+                analysis.setTargetRotation(previewView.getDisplay().getRotation());
 
                 analysis.setAnalyzer(cameraExecutor, this::analyzeImage);
 
@@ -116,40 +118,70 @@ public class UrScanActivity extends AppCompatActivity {
             int height = imageProxy.getHeight();
 
             int rowStride = yPlane.getRowStride();
-            int pixelStride = yPlane.getPixelStride(); // usually 1 for Y plane
+            int pixelStride = yPlane.getPixelStride();
 
-            // Copy into a tight width*height luminance array (ZXing expects no row padding)
             byte[] yData = new byte[width * height];
             byte[] row = new byte[rowStride];
 
             yBuffer.rewind();
             for (int r = 0; r < height; r++) {
                 int rowStart = r * rowStride;
-
-                // Read one full row (including padding) into temp buffer
                 yBuffer.position(rowStart);
                 yBuffer.get(row, 0, Math.min(rowStride, yBuffer.remaining()));
 
                 if (pixelStride == 1) {
                     System.arraycopy(row, 0, yData, r * width, width);
                 } else {
-                    // Defensive path (rare for Y plane)
                     for (int c = 0; c < width; c++) {
                         yData[r * width + c] = row[c * pixelStride];
                     }
                 }
             }
 
-            PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(
-                    yData,
-                    width,
-                    height,
-                    0,
-                    0,
-                    width,
-                    height,
-                    false
-            );
+            // Rotate luminance to match upright orientation for ZXing
+            int rot = imageProxy.getImageInfo().getRotationDegrees();
+            byte[] rotated;
+            int rw, rh;
+
+            if (rot == 90) {
+                rotated = new byte[width * height];
+                rw = height; rh = width;
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        rotated[x * height + (height - y - 1)] = yData[y * width + x];
+                    }
+                }
+            } else if (rot == 270) {
+                rotated = new byte[width * height];
+                rw = height; rh = width;
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        rotated[(width - x - 1) * height + y] = yData[y * width + x];
+                    }
+                }
+            } else if (rot == 180) {
+                rotated = new byte[width * height];
+                rw = width; rh = height;
+                    for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        rotated[(height - y - 1) * width + (width - x - 1)] = yData[y * width + x];
+                    }
+                }
+            } else {
+                rotated = yData;
+                rw = width; rh = height;
+            }
+
+PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(
+        rotated,
+        rw,
+        rh,
+        0,
+        0,
+        rw,
+        rh,
+        false
+);
 
             BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
 
