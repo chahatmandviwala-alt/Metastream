@@ -16,11 +16,6 @@ import androidx.camera.view.PreviewView;
 import androidx.core.content.ContextCompat;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.mlkit.vision.barcode.common.Barcode;
-import com.google.mlkit.vision.barcode.BarcodeScanner;
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
-import com.google.mlkit.vision.barcode.BarcodeScanning;
-import com.google.mlkit.vision.common.InputImage;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -30,6 +25,18 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import com.google.zxing.BinaryBitmap;
+import com.google.zxing.DecodeHintType;
+import com.google.zxing.MultiFormatReader;
+import com.google.zxing.NotFoundException;
+import com.google.zxing.Result;
+import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.PlanarYUVLuminanceSource;
+
+import java.nio.ByteBuffer;
+import java.util.EnumMap;
+import java.util.Map;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -77,12 +84,7 @@ public class UrScanActivity extends AppCompatActivity {
                         .setTargetResolution(new Size(1280, 720))
                         .build();
 
-                BarcodeScannerOptions options = new BarcodeScannerOptions.Builder()
-                        .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                        .build();
-                BarcodeScanner scanner = BarcodeScanning.getClient(options);
-
-                analysis.setAnalyzer(cameraExecutor, image -> analyzeImage(scanner, image));
+                analysis.setAnalyzer(cameraExecutor, this::analyzeImage);
 
                 CameraSelector cameraSelector = new CameraSelector.Builder()
                         .requireLensFacing(CameraSelector.LENS_FACING_BACK)
@@ -99,52 +101,74 @@ public class UrScanActivity extends AppCompatActivity {
     }
 
     @OptIn(markerClass = ExperimentalGetImage.class)
-    private void analyzeImage(BarcodeScanner scanner, ImageProxy imageProxy) {
-        if (imageProxy.getImage() == null) {
-            imageProxy.close();
-            return;
-        }
+    private void analyzeImage(ImageProxy imageProxy) {
+        try {
+            if (imageProxy.getImage() == null) return;
 
-        InputImage image = InputImage.fromMediaImage(
-                imageProxy.getImage(),
-                imageProxy.getImageInfo().getRotationDegrees()
-        );
+            // Use Y plane directly (luminance)
+            ByteBuffer yBuffer = imageProxy.getPlanes()[0].getBuffer();
+            byte[] yData = new byte[yBuffer.remaining()];
+            yBuffer.get(yData);
 
-        scanner.process(image)
-                .addOnSuccessListener(barcodes -> {
-                    for (Barcode b : barcodes) {
-                        String raw = b.getRawValue();
-                        if (raw == null) continue;
+            int width = imageProxy.getWidth();
+            int height = imageProxy.getHeight();
 
-                        String text = raw.trim();
-                        if (text.isEmpty()) continue;
+            PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(
+                    yData,
+                    width,
+                    height,
+                    0,
+                    0,
+                    width,
+                    height,
+                    false
+            );
 
-                        String lower = text.toLowerCase(Locale.ROOT);
-                        if (!lower.startsWith("ur:")) continue;
+            BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
 
-                        // De-dupe on total-index if present: ur:TYPE/<total>-<idx>/...
-                        String key = extractSeqKey(lower);
-                        if (key != null) {
-                            synchronized (seenSeq) {
-                                if (!seenSeq.add(key)) continue;
-                            }
-                        }
+            MultiFormatReader reader = new MultiFormatReader();
+            Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
+            hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+            reader.setHints(hints);
 
-                        // Post to local server (same contract as sign.html)
-                        new Thread(() -> {
-                            try {
-                                postPart(text);
-                                if (isDecodedAvailable()) {
-                                    runOnUiThread(() -> {
-                                        setResult(Activity.RESULT_OK, new Intent());
-                                        finish();
-                                    });
-                                }
-                            } catch (Exception ignored) {}
-                        }).start();
+            Result result;
+            try {
+                result = reader.decodeWithState(bitmap);
+            } catch (NotFoundException e) {
+                return; // no QR in this frame
+            }
+
+            if (result == null || result.getText() == null) return;
+
+            String text = result.getText().trim();
+            if (text.isEmpty()) return;
+
+            String lower = text.toLowerCase(Locale.ROOT);
+            if (!lower.startsWith("ur:")) return;
+
+            // De-dupe by total-index if present: ur:type/total-index/...
+            String key = extractSeqKey(lower);
+            if (key != null) {
+                synchronized (seenSeq) {
+                    if (!seenSeq.add(key)) return;
+                }
+            }
+
+            new Thread(() -> {
+                try {
+                    postPart(text);
+                    if (isDecodedAvailable()) {
+                        runOnUiThread(() -> {
+                            setResult(Activity.RESULT_OK, new Intent());
+                            finish();
+                        });
                     }
-                })
-                .addOnCompleteListener(task -> imageProxy.close());
+                } catch (Exception ignored) {}
+            }).start();
+
+        } finally {
+            imageProxy.close();
+        }
     }
 
     private static String extractSeqKey(String lower) {
