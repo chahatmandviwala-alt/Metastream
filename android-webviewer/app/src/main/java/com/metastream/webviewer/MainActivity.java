@@ -48,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean vkMode = false;
     private AssetHttpServer httpServer;
     private PermissionRequest pendingPermissionRequest;
+    private boolean pendingNativeScan = false;
 
     // ---- File chooser support ----
     private ValueCallback<Uri[]> filePathCallback;
@@ -549,12 +550,27 @@ public final class AndroidAppBridge {
     class AndroidNativeBridge {
         @JavascriptInterface
         public void startUrScan() {
-            runOnUiThread(() -> {
-                Intent i = new Intent(MainActivity.this, UrScanActivity.class);
-                urScanLauncher.launch(i);
-            });
+            @JavascriptInterface
+            public void startUrScan() {
+                runOnUiThread(() -> {
+                    if (ContextCompat.checkSelfPermission(
+                            MainActivity.this,
+                            Manifest.permission.CAMERA
+                    ) != PackageManager.PERMISSION_GRANTED) {
+
+                        pendingNativeScan = true;
+                        ActivityCompat.requestPermissions(
+                                MainActivity.this,
+                                new String[]{Manifest.permission.CAMERA},
+                                REQ_CAMERA
+                        );
+                        return;
+                    }
+
+                    launchNativeUrScan();
+                });
+            }  
         }
-    }
 
     // JS bridge used by injected Exit hook.
     public final class AndroidAppBridge {
@@ -621,6 +637,11 @@ public final class AndroidAppBridge {
 
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
         Toast.makeText(this, "Preparing download…", Toast.LENGTH_SHORT).show();
+    }
+
+    private void launchNativeUrScan() {
+        Intent i = new Intent(MainActivity.this, UrScanActivity.class);
+        urScanLauncher.launch(i);
     }
 
     private void onFileChooserResult(ActivityResult result) {
@@ -847,6 +868,14 @@ public final class AndroidAppBridge {
                 pendingPermissionRequest.deny();
             }
             pendingPermissionRequest = null;
+        }
+
+        if (requestCode == REQ_CAMERA && pendingNativeScan) {
+            pendingNativeScan = false;
+
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                launchNativeUrScan();
+            }
         }
     }
 
