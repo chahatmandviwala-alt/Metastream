@@ -42,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "Metastream";
     private static final int PORT = 3000;
     private static final int REQ_CAMERA = 1001;
+    private static final int REQ_UR_SCAN = 2001;
 
     private ImeBlockWebView webView;
     private android.view.View focusSink;
@@ -111,6 +112,7 @@ root.addView(focusSink, lp);
         webView.addJavascriptInterface(new AndroidDownloadBridge(), "AndroidDownloadBridge");
         webView.addJavascriptInterface(new AndroidImeBridge(), "AndroidImeBridge");
         webView.addJavascriptInterface(new AndroidAppBridge(), "AndroidApp");
+        webView.addJavascriptInterface(new NativeBridge(), "NativeBridge");
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -497,6 +499,17 @@ public final class AndroidAppBridge {
     }
 }
 
+    
+    private final class NativeBridge {
+        @JavascriptInterface
+        public void startUrScan() {
+            runOnUiThread(() -> {
+                Intent i = new Intent(MainActivity.this, UrScanActivity.class);
+                startActivityForResult(i, REQ_UR_SCAN);
+            });
+        }
+    }
+    
     @JavascriptInterface
     public void vkOff() {
         runOnUiThread(() -> {
@@ -746,6 +759,37 @@ public final class AndroidAppBridge {
         }
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQ_UR_SCAN) {
+            if (resultCode == RESULT_OK && data != null) {
+                String type = data.getStringExtra(UrScanActivity.EXTRA_UR_TYPE);
+                byte[] cbor = data.getByteArrayExtra(UrScanActivity.EXTRA_UR_CBOR);
+
+                if (type != null && cbor != null && httpServer != null) {
+                    httpServer.setAssembledUr(type, cbor);
+                }
+
+                // Notify the page that native scanning completed; page can call refreshDecoded().
+                if (webView != null) {
+                    webView.post(() -> webView.evaluateJavascript(
+                        "window.onNativeUrDecoded && window.onNativeUrDecoded();",
+                        null
+                    ));
+                }
+            } else {
+                if (webView != null) {
+                    webView.post(() -> webView.evaluateJavascript(
+                        "window.onNativeUrScanCancelled && window.onNativeUrScanCancelled();",
+                        null
+                    ));
+                }
+            }
+        }
+    }
+
     private static String guessFilename(String url, String contentDisposition, String mime) {
         if (contentDisposition != null) {
             String cd = contentDisposition;
@@ -834,3 +878,4 @@ public final class AndroidAppBridge {
         clearPendingBridgeDownload();
     }
 }
+
