@@ -31,6 +31,7 @@ import java.util.concurrent.Executors;
 
 import com.sparrowwallet.hummingbird.UR;
 import com.sparrowwallet.hummingbird.URDecoder;
+import com.sparrowwallet.hummingbird.ResultType;
 
 public class UrScanActivity extends AppCompatActivity {
 
@@ -154,7 +155,7 @@ public class UrScanActivity extends AppCompatActivity {
                         urDecoder.receivePart(part);
 
                         URDecoder.Result res = urDecoder.getResult();
-                        if (res != null && res.type == URDecoder.ResultType.SUCCESS) {
+                        if (res != null && res.type == ResultType.SUCCESS) {
                             UR ur = res.ur;
                             byte[] cbor = ur.toBytes();
                             String type = ur.getType();
