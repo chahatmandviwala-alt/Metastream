@@ -48,6 +48,9 @@ public class UrScanActivity extends AppCompatActivity {
     // De-dupe on the phone side to avoid reposting the same frame endlessly
     private final HashSet<String> seenSeq = new HashSet<>();
 
+    private volatile int lastIndexSeen = -1;
+    private volatile int sameIndexStreak = 0;
+
     private static final String API_PART_URL = "http://127.0.0.1:3000/api/ur/part";
     private static final String API_DECODED_URL = "http://127.0.0.1:3000/api/ur/decoded";
 
@@ -173,8 +176,30 @@ public class UrScanActivity extends AppCompatActivity {
             // De-dupe by total-index if present: ur:type/total-index/...
             String key = extractSeqKey(lower);
             if (key != null) {
+
+                // Only proceed if this is a NEW frame index
+                boolean isNew;
                 synchronized (seenSeq) {
-                    if (!seenSeq.add(key)) return;
+                    isNew = seenSeq.add(key);
+                }
+                if (!isNew) return;
+
+                int idx = parseIndexFromSeqKey(key);
+                if (idx >= 0) {
+                    // Break sampling lock if we keep seeing the same index
+                    if (idx == lastIndexSeen) {
+                        sameIndexStreak++;
+                    } else {
+                        lastIndexSeen = idx;
+                        sameIndexStreak = 0;
+                    }
+
+                    if (sameIndexStreak >= 6) {
+                        sameIndexStreak = 0;
+                        try {
+                            Thread.sleep(110); // phase shift vs animation
+                        } catch (InterruptedException ignored) {}
+                    }
                 }
             }
 
@@ -205,6 +230,17 @@ public class UrScanActivity extends AppCompatActivity {
         String seq = lower.substring(firstSlash + 1, secondSlash); // "299-5"
         if (!seq.contains("-")) return null;
         return seq;
+    }
+
+    private static int parseIndexFromSeqKey(String seqKey) {
+        // seqKey format: "843-5"
+        int dash = seqKey.indexOf('-');
+        if (dash <= 0) return -1;
+        try {
+            return Integer.parseInt(seqKey.substring(dash + 1));
+        } catch (Exception e) {
+            return -1;
+        }
     }
 
     private static void postPart(String part) throws Exception {
