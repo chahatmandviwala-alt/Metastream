@@ -1,0 +1,37 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace "com.metastream.webviewer"
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.metastream.webviewer"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+
+    // BIP39/BIP32 (for mnemonic -> seed -> derived key)
+    implementation 'org.bitcoinj:bitcoinj-core:0.16.3'
+
+    // CBOR encoding (for crypto-hdkey payload)
+    implementation 'com.upokecenter:cbor:4.5.2'
+
+    // QR generation (to return qrDataUrl like server.js does)
+    implementation 'com.google.zxing:core:3.5.3'
+
+}

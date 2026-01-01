@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Create Wallet</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{
+    --bg: #fafbfc;
+    --text: #0f172a;
+    --muted:#475569;
+    --border:#e2e8f0;
+    --panel:#ffffff;
+    --accent:#357CBA;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans";
+    --radius: 10px;
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--text);
+    min-height: 100vh;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* Container always horizontally centered; vertical behavior is toggled via .centered */
+  .wrap{
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 32px 16px;
+    width:100%;
+    flex-grow: 1;
+    display:flex;
+    flex-direction:column;
+  }
+  .wrap.centered{
+    justify-content:center;  /* when export block is shown, center both blocks vertically */
+  }
+
+  .centered-header{
+    text-align:center;
+    margin-bottom: 24px;
+  }
+  .centered-header h1{
+    font-size: 1.28rem;
+    margin: 4px 0 8px 0;
+  }
+  .subheading{
+    color: var(--muted);
+    font-size: 1rem;
+    margin: 0;
+    line-height: 1.35;
+  }
+
+  .section{
+    background: var(--panel);
+    border: 3px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    display:flex;
+    flex-direction:column;
+    width:100%;
+    max-width:100%;
+  }
+
+  .blockTitle{
+    font-weight: 700;
+    margin: 0 0 10px 0;
+    font-size: 0.95rem;
+  }
+
+  label{ display:block; font-weight:600; margin: 6px 0 6px; }
+  input[type=text], input[type=password], select, textarea{
+    width:100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    outline: none;
+    font-family: var(--sans);
+  }
+  input.mono{ font-family: var(--sans); }
+  input[type=text]:focus, input[type=password]:focus, textarea:focus, select:focus{
+    border-color: var(--accent);
+  }
+
+  .row{
+    display:grid;
+    grid-template-columns: 0.75fr 0.95fr 1.25fr;
+    gap: 8px;
+    align-items: start;
+  }
+  @media (max-width: 640px){
+    .row{ grid-template-columns: 1fr; }
+  }
+
+  .hint{
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 6px;
+    line-height: 1.35;
+  }
+
+  .btn{
+    display:inline-block;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    color:#fff;
+    background: var(--accent);
+    font-weight: 600;
+    cursor:pointer;
+    margin-top: 12px;
+    box-shadow: none; /* minimalistic: no shadows */
+  }
+  .btn.secondary{
+    background: transparent;
+    color: var(--accent);
+  }
+  .btn:disabled{
+    opacity: 0.65;
+    cursor:not-allowed;
+  }
+
+  .flex{ display:flex; gap: 12px; flex-wrap: wrap; align-items:center; }
+
+  .mono{ font-family: var(--mono); word-break: break-word; }
+
+  .codebox{
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: transparent;
+  }
+
+  /* Callout wrapper for results */
+  .callout{
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    background: rgba(2,6,23,0.02);
+  }
+
+  /* Result formatting */
+.result-line{
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: flex-start; /* not space-between */
+  padding: 20px 12px;
+  padding-right: 12px; /* reserve visual space so text doesn't sit under buttons */
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background: transparent;
+  width: 100%;
+}
+
+  .result-line:last-child{ margin-bottom: 0; }
+
+  .result-left{
+    flex: 1;
+    min-width: 0; /* enables ellipsis */
+  }
+
+  .result-label{
+    font-weight: 700;
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .badge-warn{
+    display:inline-flex;
+    align-items:center;
+    gap: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(239,68,68,0.35);
+    background: rgba(239,68,68,0.08);
+    color: #b91c1c;
+    font-weight: 700;
+  }
+
+  .result-value{
+    font-family: var(--mono);
+    font-size: 0.95rem; /* smaller so address/key fit one line */
+    line-height: 1.5;
+    color: var(--text);
+  }
+
+  /* Truncation + expand */
+  .trunc{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 2px 4px;
+  }
+  .trunc:hover{
+    background: rgba(14,165,233,0.06);
+  }
+  .trunc.expanded{
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  /* Actions (copy / reveal) */
+.line-actions{
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+  .result-value{
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .result-line:hover .line-actions{ opacity: 1; }
+
+  .icon-btn{
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    display:grid;
+    place-items:center;
+    padding: 0;
+  }
+
+  .icon-btn:hover{
+    border-color: rgba(14,165,233,0.45);
+  }
+
+  .icon{
+    width: 16px;
+    height: 16px;
+    color: var(--muted);
+  }
+
+  /* Hide / show private key */
+  .secret{
+    filter: blur(6px);
+    user-select: none;
+  }
+  .secret.revealed{
+    filter: none;
+    user-select: text;
+  }
+
+  .hidden{ display:none !important; }
+
+  .err{
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 6px;
+    white-space: pre-wrap;
+  }
+
+  .download{
+    display:none;
+    margin-top: 12px;
+    text-align:center;
+    padding: 0px 0px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-decoration:none;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .download:hover{ border-color: var(--accent); }
+
+  .footnote{
+    font-size: 0.8rem;
+    color: #ef4444;
+    margin: 10px 0 0 0;
+  }
+
+  /* Spacing between blocks */
+  .spacer{ height: 14px; }
+
+  /* Export keystore attention helpers */
+  .highlight{
+    outline: 3px solid rgba(53,124,186,0.9);
+    outline-offset: 4px;
+    box-shadow: 0 0 0 6px rgba(53,124,186,0.15);
+    border-radius: 14px;
+    transition: box-shadow 200ms ease, outline-color 200ms ease;
+  }
+
+  #exportBlock{
+    margin-top: 0px;
+  }
+
+  .warning{
+    margin-top: 8px;
+    margin-bottom: 8px;
+    padding: 6px;
+    border-radius: 8px;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    background: rgba(239, 68, 68, 0.06);
+    color: #b91c1c;
+    font-size: 0.75rem;
+    line-height: 1.2;
+  }
+
+  .label-with-info{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Info icon */
+  .info-icon{
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    cursor: help;
+    line-height: 1;
+  }
+
+  /* Tooltip */
+  .info-icon .tooltip{
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 260px;
+    max-width: 320px;
+    padding: 10px 12px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease, transform 120ms ease;
+    z-index: 10;
+  }
+
+  /* Tooltip arrow */
+  .info-icon .tooltip::after{
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: var(--border) transparent transparent transparent;
+  }
+
+  /* Show on hover / focus */
+  .info-icon:hover .tooltip,
+  .info-icon:focus .tooltip{
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
+  }
+
+  /* Code styling inside tooltip */
+  .tooltip code{
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    background: rgba(2,6,23,0.05);
+    padding: 2px 4px;
+    border-radius: 4px;
+  }
+
+  /* ------------------------------------------------------------------
+     Keystore-tool-style label row + Show/Hide button (copied verbatim)
+     ------------------------------------------------------------------ */
+  .field {
+    width: 100%;
+  }
+
+  .label-row {
+    width: 100%;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between; /* pushes Show to the far right */
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+
+  .field-label {
+    font-size: 16px;
+    margin-bottom: 2px;
+  }
+
+  .text-toggle {
+    font-size: 11px;
+    padding: 2px 6px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background-color: #f8f8f8;
+    color: #333;
+    margin-top: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-right: 6px; /* inset from edge */
+  }
+
+  .text-toggle:hover {
+    background-color: #eee;
+  }
+
+  .text-toggle:active {
+    background-color: #e0e0e0;
+  }
+
+  .text-toggle:focus {
+    outline: none;
+  }
+  
+  .download{
+    display: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    text-decoration: none;
+	color: #fff;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    font-weight: 600;
+    cursor:pointer;
+	  line-height: 1;
+    box-shadow: none; /* minimalistic: no shadows */
+  }
+</style>
+</head>
+
+<body>
+  <div class="wrap" id="wrap">
+    <header class="centered-header">
+      <h1>New Wallet</h1>
+      <p class="subheading">Create new wallet and export as keystore file</p>
+    </header>
+
+    <!-- Block 1: Generate wallet -->
+    <section class="section" id="genBlock">
+
+      <div class="row">
+        <div>
+          <label style="margin-bottom:6px; margin-top:8px;">Seed phrase</label>
+          <select id="wordCount">
+            <option value="24">24 words</option>
+            <option value="21">21 words</option>
+            <option value="18">18 words</option>
+            <option value="15">15 words</option>
+            <option value="12">12 words</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="label-with-info" style="margin-bottom:6px; margin-top:8px;">
+            Derivation path
+            <span class="info-icon" tabindex="0" aria-label="Derivation path information">
+              ⓘ
+              <span class="tooltip">
+                Default path for Ethereum wallets is <code>m/44'/60'/0'/0/0</code>.
+                Do not change if you do not know what a derivation path is.
+              </span>
+            </span>
+          </label>
+          <input class="mono" id="derivationPath" type="text" value="m/44'/60'/0'/0/0" />
+        </div>
+
+	  
+        <div class="field">
+          <div class="label-row">
+            <label for="passphrase" class="field-label">
+              Passphrase
+              <span class="info-icon" tabindex="0" aria-label="Passphrase information">
+                ⓘ
+                <span class="tooltip">
+                  Leave it blank if you do not know what a passphrase is.
+                </span>
+              </span>
+            </label>
+
+            <button type="button" id="togglePassphrase" class="text-toggle">Show</button>
+          </div>
+
+          <input id="passphrase" type="password" placeholder="Choose a passphrase (optional)" />
+        </div>
+      </div>
+
+      <div class="flex">
+        <button id="generate" class="btn">Generate wallet</button>
+        <button id="exportWallet" class="btn secondary hidden" type="button">Export wallet</button>
+        <button id="reset" class="btn secondary hidden" type="button">Reset</button>
+      </div>
+
+      <div id="err" class="err"></div>
+
+      <div id="out" class="callout hidden" style="margin-top:6px;"></div>
+
+      <div class="warning" id="tipLine">
+        <strong>Security Note:</strong> Use this tool on an air-gapped machine for maximum security.
+      </div>
+    </section>
+
+    <div class="spacer hidden" id="spacer"></div>
+
+    <!-- Block 2: Export keystore (hidden until wallet generated) -->
+<section class="section hidden" id="exportBlock">
+  <div class="blockTitle">Export Wallet</div>
+
+<div class="field">
+  <div class="label-row">
+    <label for="keystorePassword" class="field-label">
+      Password
+      <span class="info-icon" tabindex="0" aria-label="Keystore password information">
+        ⓘ
+        <span class="tooltip">
+          This password will be used to encrypt the generated wallet as a keystore (.json) file. The encryption process will take approximately 5 seconds.
+          The wallet can never be recovered if the password is lost.
+        </span>
+      </span>
+    </label>
+
+    <button
+      type="button"
+      id="toggleKeystorePassword"
+      class="text-toggle"
+    >
+      Show
+    </button>
+  </div>
+
+  <input
+    id="keystorePassword"
+    type="password"
+    placeholder="Use a strong password. Never use it anywhere else."
+  />
+</div>
+
+  <div class="flex">
+    <button id="export" class="btn secondary">
+      Encrypt
+    </button>
+
+    <a id="dl" class="download">
+      Download
+    </a>
+  </div>
+</section>
+  </div>
+
+  <script src="./libs/ethers.umd.min.js"></script>
+
+  <script>
+    if (typeof ethers === "undefined") {
+      alert("ethers.js not found. Put ethers.umd.min.js next to this HTML (same folder).");
+    }
+
+    const $ = (id) => document.getElementById(id);
+
+    const wrap = $("wrap");
+
+    const setErr = (t) => { $("err").textContent = t || ""; };
+
+    const showOut = (html) => {
+      $("out").innerHTML = html;
+      $("out").classList.remove("hidden");
+    };
+
+    const hideOut = () => {
+      $("out").textContent = "";
+      $("out").classList.add("hidden");
+    };
+
+    const revokeDl = () => {
+      const a = $("dl");
+      if (a.href && a.href.startsWith("blob:")) URL.revokeObjectURL(a.href);
+      a.removeAttribute("href");
+      a.style.display = "none";
+    };
+
+    // Keystore-tool-style button toggle
+    function attachButtonToggle(inputId, buttonId) {
+      const input = document.getElementById(inputId);
+      const btn = document.getElementById(buttonId);
+      if (!input || !btn) return;
+
+      btn.addEventListener("click", () => {
+        const visible = input.type === "text";
+        input.type = visible ? "password" : "text";
+        btn.textContent = visible ? "Show" : "Hide";
+        btn.classList.toggle("active", !visible);
+      });
+    }
+
+    // Wire passphrase toggle
+    attachButtonToggle("passphrase", "togglePassphrase");
+	attachButtonToggle("keystorePassword", "toggleKeystorePassword");
+
+    // --- Result rendering helpers ---
+    const ICONS = {
+      copy: `<svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M9 9h10v10H9V9Z" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.8"/>
+      </svg>`,
+      eye: `<svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="1.8"/>
+      </svg>`,
+      eyeOff: `<svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3 3l18 18" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M10.6 10.6a2.5 2.5 0 0 0 3.4 3.4" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M6.2 6.2C3.6 8.2 2 12 2 12s3.5 7 10 7c1.9 0 3.6-.4 5.1-1.1" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M9.1 4.4A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a18.2 18.2 0 0 1-3.2 4.6" stroke="currentColor" stroke-width="1.8"/>
+      </svg>`
+    };
+
+    const escapeHtml = (str) => String(str)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+
+    const copyToClipboard = async (text) => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (_) {}
+      // Fallback
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.top = "-9999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      } catch (_) {
+        return false;
+      }
+    };
+
+    const renderResults = ({ mnemonic, address, privateKey }) => {
+      return `
+<div class="result-line" data-kind="mnemonic">
+  <div class="result-left">
+    <div class="result-label">
+      <span>Seed phrase</span>
+      <span class="badge-warn">Sensitive</span>
+    </div>
+
+    <div
+      class="result-value secret"
+      data-secret="true"
+      title="Click to reveal"
+    >
+      ${escapeHtml(mnemonic)}
+    </div>
+  </div>
+
+  <div class="line-actions" aria-label="Seedphrase actions">
+    <button
+      class="icon-btn"
+      type="button"
+      data-action="reveal"
+      aria-label="Reveal seedphrase"
+    >
+      ${ICONS.eye}
+    </button>
+
+    <button
+      class="icon-btn"
+      type="button"
+      data-action="copy"
+      data-value="${escapeHtml(mnemonic)}"
+      aria-label="Copy seedphrase"
+    >
+      ${ICONS.copy}
+    </button>
+  </div>
+</div>
+
+        <div class="result-line" data-kind="address">
+          <div class="result-left">
+            <div class="result-label"><span>Address</span></div>
+            <div class="result-value" title="Click to expand" data-expand="true">${escapeHtml(address)}</div>
+          </div>
+          <div class="line-actions" aria-label="Address actions">
+            <button class="icon-btn" type="button" data-action="copy" data-value="${escapeHtml(address)}" aria-label="Copy address">${ICONS.copy}</button>
+          </div>
+        </div>
+
+        <div class="result-line" data-kind="privateKey">
+          <div class="result-left">
+            <div class="result-label"><span>Private key</span><span class="badge-warn">Sensitive</span></div>
+            <div class="result-value trunc secret" title="Click to expand" data-expand="true" data-secret="true">${escapeHtml(privateKey)}</div>
+          </div>
+          <div class="line-actions" aria-label="Private key actions">
+            <button class="icon-btn" type="button" data-action="reveal" aria-label="Reveal private key">${ICONS.eye}</button>
+            <button class="icon-btn" type="button" data-action="copy" data-value="${escapeHtml(privateKey)}" aria-label="Copy private key">${ICONS.copy}</button>
+          </div>
+        </div>
+      `;
+    };
+
+    function showExportSection(show) {
+      $("exportBlock").classList.toggle("hidden", !show);
+      $("spacer").classList.toggle("hidden", !show);
+      // When export block is present, center both blocks vertically.
+      wrap.classList.toggle("centered", show);
+    }
+
+    function isEthersV6() {
+      // v6 exposes randomBytes at top-level and has no ethers.utils
+      return !ethers.utils && typeof ethers.randomBytes === "function";
+    }
+
+    function generateMnemonic(wordCount) {
+      const map = { 12:16, 15:20, 18:24, 21:28, 24:32 };
+      const bytes = map[wordCount];
+      if (!bytes) throw new Error("Unsupported word count (use 12/15/18/21/24).");
+
+      if (isEthersV6()) {
+        // v6: randomBytes + Mnemonic.fromEntropy
+        const entropy = ethers.randomBytes(bytes);
+        const mnemonicObj = ethers.Mnemonic.fromEntropy(entropy);
+        return mnemonicObj.phrase; // string
+      } else {
+        // v5
+        const entropy = ethers.utils.randomBytes(bytes);
+        return ethers.utils.entropyToMnemonic(entropy);
+      }
+    }
+
+    function walletFromMnemonic(mnemonic, passphrase, path) {
+      if (isEthersV6()) {
+        // v6: HDNodeWallet.fromPhrase supports passphrase + path
+        // Note: in v6, this returns a wallet already derived at 'path'
+        return ethers.HDNodeWallet.fromPhrase(mnemonic, passphrase || "", path);
+      } else {
+        // v5
+        const hd = ethers.utils.HDNode.fromMnemonic(mnemonic, passphrase || "");
+        const child = hd.derivePath(path);
+        return new ethers.Wallet(child.privateKey);
+      }
+    }
+
+    let state = null; // { mnemonic, path, address, privateKey }
+
+    function setGeneratedUI(isGenerated) {
+      const btn = $("generate");
+      const exportBtn = $("exportWallet");
+      const resetBtn = $("reset");
+
+      if (isGenerated) {
+        btn.textContent = "Wallet generated";
+        btn.disabled = true;
+
+        exportBtn.classList.remove("hidden");
+        resetBtn.classList.remove("hidden");
+      } else {
+        btn.textContent = "Generate wallet";
+        btn.disabled = false;
+
+        exportBtn.classList.add("hidden");
+        resetBtn.classList.add("hidden");
+      }
+    }
+
+    // Initial state
+    showExportSection(false);
+    setGeneratedUI(false);
+
+    // Interactions inside the results callout (expand / copy / reveal)
+    $("out").addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("button[data-action]");
+      if (btn) {
+        const action = btn.getAttribute("data-action");
+        if (action === "copy") {
+          const val = btn.getAttribute("data-value") || "";
+          await copyToClipboard(val);
+        } else if (action === "reveal") {
+          const line = btn.closest(".result-line");
+          const secretEl = line && line.querySelector("[data-secret]");
+          if (secretEl) {
+            const revealed = secretEl.classList.toggle("revealed");
+            btn.setAttribute("aria-label", revealed ? "Hide private key" : "Reveal private key");
+            btn.innerHTML = revealed ? ICONS.eyeOff : ICONS.eye;
+          }
+        }
+        return;
+      }
+
+      const exp = ev.target.closest(".trunc[data-expand='true']");
+      if (exp) {
+        exp.classList.toggle("expanded");
+      }
+    });
+
+    $("generate").addEventListener("click", () => {
+      try {
+        setErr("");
+        hideOut();
+        revokeDl();
+        showExportSection(false);
+        setGeneratedUI(false);
+        state = null;
+
+        const wc = parseInt($("wordCount").value, 10);
+        const mnemonic = generateMnemonic(wc);
+
+        const path = ($("derivationPath").value || "").trim();
+        if (!path) {
+          setErr("Derivation path cannot be empty.");
+          return;
+        }
+
+        const passphrase = $("passphrase").value || "";
+        const wallet = walletFromMnemonic(mnemonic, passphrase, path);
+
+        state = {
+          mnemonic,
+          path,
+          address: wallet.address,
+          privateKey: wallet.privateKey
+        };
+
+        showOut(renderResults(state));
+
+        // Hide security tip after generation
+        $("tipLine").classList.add("hidden");
+
+        // Post-success UI behavior:
+        setGeneratedUI(true);
+        showExportSection(false);
+
+      } catch (e) {
+        setErr(e && e.message ? e.message : String(e));
+      }
+    });
+
+    $("export").addEventListener("click", async () => {
+      try {
+        setErr("");
+        revokeDl();
+
+        if (!state) {
+          setErr("Generate a wallet first.");
+          return;
+        }
+
+        const pw = ($("keystorePassword").value || "");
+        if (!pw) {
+          setErr("Please enter a keystore password first.");
+          return;
+        }
+
+        $("export").disabled = true;
+
+        const passphrase = $("passphrase").value || "";
+        const wallet = walletFromMnemonic(state.mnemonic, passphrase, state.path);
+        let json;
+
+		// Increase scrypt N here (must be power of two)
+		const SCRYPT = { N: 262144, r: 8, p: 1 };
+
+		if (isEthersV6()) {
+		// ethers v6: use encryptKeystoreJson (supports scrypt params)
+		const account = {
+			address: wallet.address,
+			privateKey: wallet.privateKey,
+			// Optional metadata (safe to omit, but useful if you want mnemonic info embedded)
+			mnemonic: {
+			entropy: ethers.Mnemonic.fromPhrase(state.mnemonic).entropy,
+			path: state.path
+			}
+		};
+
+		json = await ethers.encryptKeystoreJson(
+			account,
+			pw,
+			{
+			scrypt: SCRYPT,
+			progressCallback: (_p) => { /* optional: update UI */ }
+			}
+		);
+		} else {
+		// ethers v5: wallet.encrypt supports options + progress callback
+		json = await wallet.encrypt(
+			pw,
+			{ scrypt: SCRYPT },
+			(_p) => { /* optional: update UI */ }
+		);
+	    }
+
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+
+        const a = $("dl");
+        a.href = url;
+        a.download = "keystore.json";
+        a.textContent = "Download";
+        a.style.display = "block";
+
+      } catch (e) {
+        setErr(e && e.message ? e.message : String(e));
+      } finally {
+        $("export").disabled = false;
+      }
+    });
+
+    $("exportWallet").addEventListener("click", () => {
+      // Ensure the export section is visible and bring it into view
+      showExportSection(true);
+
+      const block = $("exportBlock");
+      block.classList.add("highlight");
+      block.scrollIntoView({ behavior: "smooth", block: "start" });
+
+      // Remove highlight after a short moment
+      window.setTimeout(() => block.classList.remove("highlight"), 1600);
+    });
+
+    $("reset").addEventListener("click", () => {
+      state = null;
+
+      $("tipLine").classList.remove("hidden");
+
+      $("wordCount").value = "12";
+      $("passphrase").value = "";
+      $("derivationPath").value = "m/44'/60'/0'/0/0";
+      $("keystorePassword").value = "";
+
+      setErr("");
+      hideOut();
+      revokeDl();
+
+      setGeneratedUI(false);
+      showExportSection(false);
+
+      // Reset toggle button label and ensure passphrase is hidden again
+      const passInput = $("passphrase");
+      const toggleBtn = $("togglePassphrase");
+      if (passInput && toggleBtn) {
+        passInput.type = "password";
+        toggleBtn.textContent = "Show";
+        toggleBtn.classList.remove("active");
+      }
+    });
+  </script>
+</body>
+</html>
+
+
+
+
