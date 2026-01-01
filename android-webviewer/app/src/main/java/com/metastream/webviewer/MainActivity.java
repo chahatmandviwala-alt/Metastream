@@ -548,29 +548,27 @@ public final class AndroidAppBridge {
 }
 
     class AndroidNativeBridge {
-        @JavascriptInterface
-        public void startUrScan() {
-            @JavascriptInterface
-            public void startUrScan() {
-                runOnUiThread(() -> {
-                    if (ContextCompat.checkSelfPermission(
-                            MainActivity.this,
-                            Manifest.permission.CAMERA
-                    ) != PackageManager.PERMISSION_GRANTED) {
+    @JavascriptInterface
+    public void startUrScan() {
+        runOnUiThread(() -> {
+            if (ContextCompat.checkSelfPermission(
+                    MainActivity.this,
+                    Manifest.permission.CAMERA
+            ) != PackageManager.PERMISSION_GRANTED) {
 
-                        pendingNativeScan = true;
-                        ActivityCompat.requestPermissions(
-                                MainActivity.this,
-                                new String[]{Manifest.permission.CAMERA},
-                                REQ_CAMERA
-                        );
-                        return;
-                    }
+                pendingNativeScan = true;
+                ActivityCompat.requestPermissions(
+                        MainActivity.this,
+                        new String[]{Manifest.permission.CAMERA},
+                        REQ_CAMERA
+                );
+                return;
+            }
 
-                    launchNativeUrScan();
-                });
-            }  
-        }
+            launchNativeUrScan();
+        });
+    }
+}
 
     // JS bridge used by injected Exit hook.
     public final class AndroidAppBridge {
