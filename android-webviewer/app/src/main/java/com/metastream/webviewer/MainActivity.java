@@ -639,6 +639,7 @@ public final class AndroidAppBridge {
 
     private void launchNativeUrScan() {
         Intent i = new Intent(MainActivity.this, UrScanActivity.class);
+        i.putExtra("LOCAL_PORT", PORT);
         urScanLauncher.launch(i);
     }
 
