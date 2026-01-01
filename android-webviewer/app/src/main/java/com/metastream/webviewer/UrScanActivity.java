@@ -33,6 +33,8 @@ import com.google.zxing.NotFoundException;
 import com.google.zxing.Result;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.PlanarYUVLuminanceSource;
+import com.google.zxing.LuminanceSource;
+import com.google.zxing.InvertedLuminanceSource;
 
 import java.nio.ByteBuffer;
 import java.util.EnumMap;
@@ -183,18 +185,39 @@ PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(
         false
 );
 
-            BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
-
             MultiFormatReader reader = new MultiFormatReader();
             Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
             hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
             reader.setHints(hints);
 
-            Result result;
-            try {
-                result = reader.decodeWithState(bitmap);
-            } catch (NotFoundException e) {
-                return; // no QR in this frame
+            Result result = null;
+
+            // Pass 1: full frame
+            result = tryDecode(reader, rotated, rw, rh, 0, 0, rw, rh, false);
+
+            // Pass 2: centered square crop (~70% of min dimension) - helps a lot for dense QR
+            if (result == null) {
+                int side = (int)(Math.min(rw, rh) * 0.70);
+                int left = (rw - side) / 2;
+                int top  = (rh - side) / 2;
+                result = tryDecode(reader, rotated, rw, rh, left, top, side, side, false);
+            }
+
+            // Pass 3: inverted full frame (handles some displays/cameras better)
+            if (result == null) {
+                result = tryDecode(reader, rotated, rw, rh, 0, 0, rw, rh, true);
+            }
+
+            // Pass 4: inverted centered crop
+            if (result == null) {
+                int side = (int)(Math.min(rw, rh) * 0.70);
+                int left = (rw - side) / 2;
+                int top  = (rh - side) / 2;
+                result = tryDecode(reader, rotated, rw, rh, left, top, side, side, true);
+            }
+
+            if (result == null) {
+                return; // no QR decoded in this frame
             }
 
             if (result == null || result.getText() == null) return;
@@ -294,6 +317,24 @@ PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(
         // Drain response
         conn.getInputStream().close();
         conn.disconnect();
+    }
+
+    private Result tryDecode(MultiFormatReader reader,
+                             byte[] lum, int w, int h,
+                             int left, int top, int cw, int ch,
+                             boolean invert) {
+        try {
+            PlanarYUVLuminanceSource src = new PlanarYUVLuminanceSource(
+                    lum, w, h, left, top, cw, ch, false
+            );
+            LuminanceSource ls = invert ? new InvertedLuminanceSource(src) : src;
+            BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(ls));
+            return reader.decodeWithState(bmp);
+        } catch (NotFoundException e) {
+            return null;
+        } finally {
+            reader.reset();
+        }
     }
 
     private static boolean isDecodedAvailable() {
