@@ -1573,7 +1573,15 @@
       async function startCamera() {
         try {
           await resetServerDecoder();
-          if (!html5QrCode) html5QrCode = new Html5Qrcode('reader');
+          // ANDROID ONLY: use native scanner bridge if available
+    	  if (window.AndroidNative && typeof AndroidNative.startUrScan === 'function') {
+      	    AndroidNative.startUrScan();
+      	    isRunning = false;
+      	    cameraToggleBtn.textContent = 'Start camera';
+      	    log('Using native Android scanner.');
+      	    return;
+    	  }
+		  if (!html5QrCode) html5QrCode = new Html5Qrcode('reader');
           const configs = {
   			fps: 12,
   			qrbox: { width: 220, height: 220 },
@@ -1592,6 +1600,12 @@
 
       async function stopCamera() {
         try {
+		    // ANDROID ONLY: native scanner handles camera; nothing to stop here
+    	  if (window.AndroidNative && typeof AndroidNative.startUrScan === 'function') {
+      		isRunning = false;
+      		cameraToggleBtn.textContent = 'Start camera';
+      		return;
+    	  }
           if (html5QrCode && isRunning) {
             await html5QrCode.stop();
             await html5QrCode.clear();
