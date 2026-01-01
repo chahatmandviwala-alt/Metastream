@@ -24,8 +24,10 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -55,8 +57,12 @@ public class UrScanActivity extends AppCompatActivity {
     // ZXing reader configured for QR only
     private final MultiFormatReader reader = new MultiFormatReader();
 
-    // Dedup based on exact part string; Hummingbird also tolerates repeats, but this reduces work.
-    private String lastPart = null;
+    // Adaptive ROI lock + dedup
+    private Rect lockedRoi = null;
+    private long lockedRoiUntilMs = 0L;
+    private static final long ROI_LOCK_MS = 2500;
+
+    private final Set<String> seenParts = new HashSet<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -152,7 +158,9 @@ public class UrScanActivity extends AppCompatActivity {
                 return;
             }
 
-            // Convert Y plane (luma) to byte[] for ZXing
+            int rotation = image.getImageInfo().getRotationDegrees();
+
+            // Read luma
             ByteBuffer yBuf = image.getPlanes()[0].getBuffer();
             byte[] y = new byte[yBuf.remaining()];
             yBuf.get(y);
@@ -160,13 +168,23 @@ public class UrScanActivity extends AppCompatActivity {
             int width = image.getWidth();
             int height = image.getHeight();
 
-            // Fixed ROI: center square ~70% of the smaller dimension
-            Rect roi = centerSquareRoi(width, height, 0.70f);
+            // Rotate luma to match upright orientation (critical for ZXing reliability)
+            RotatedLuma rotated = rotateLuma(y, width, height, rotation);
+
+            // Decide ROI: full frame until we have a lock; then use locked ROI
+            Rect roi;
+            long now = System.currentTimeMillis();
+            if (lockedRoi != null && now < lockedRoiUntilMs) {
+                roi = lockedRoi;
+            } else {
+                roi = new Rect(0, 0, rotated.width, rotated.height);
+                lockedRoi = null;
+            }
 
             PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(
-                    y,
-                    width,
-                    height,
+                    rotated.data,
+                    rotated.width,
+                    rotated.height,
                     roi.left,
                     roi.top,
                     roi.width(),
@@ -174,33 +192,36 @@ public class UrScanActivity extends AppCompatActivity {
                     false
             );
 
-            // Try normal + inverted in a deterministic manner
-            String text = tryDecode(source);
-            if (text == null) {
-                // Invert: ZXing supports it via InvertedLuminanceSource
-                LuminanceSource inverted = source.invert();
-                text = tryDecode(inverted);
+            // Try normal + inverted
+            Result zxingResult = tryDecodeResult(source);
+            if (zxingResult == null) {
+                zxingResult = tryDecodeResult(source.invert());
             }
 
-            if (text != null) {
-                String part = text.trim();
-                // We only care about UR fragments
-                if (part.regionMatches(true, 0, "ur:", 0, 3)) {
-                    // Optional exact-string dedup to reduce useless repeats
-                    if (!part.equals(lastPart)) {
-                        lastPart = part;
-                        urDecoder.receivePart(part);
+            if (zxingResult != null) {
+                String text = zxingResult.getText() != null ? zxingResult.getText().trim() : null;
+
+                // If we decoded something QR-ish, compute and lock ROI around QR for a short period
+                Rect newLock = computeRoiFromResultPoints(zxingResult, rotated.width, rotated.height);
+                if (newLock != null) {
+                    lockedRoi = newLock;
+                    lockedRoiUntilMs = now + ROI_LOCK_MS;
+                }
+
+                if (text != null && text.regionMatches(true, 0, "ur:", 0, 3)) {
+                    // Dedup on fragment text to avoid spinning on repeats
+                    if (seenParts.add(text)) {
+                        urDecoder.receivePart(text);
 
                         URDecoder.Result res = urDecoder.getResult();
                         if (res != null && res.type == ResultType.SUCCESS) {
                             UR ur = res.ur;
-                            byte[] cbor = ur.toBytes();
-                            String type = ur.getType();
-
-                            finishSuccess(type, cbor);
+                            finishSuccess(ur.getType(), ur.toBytes());
+                            return;
                         } else {
-                            // Update progress text (best-effort; API does not guarantee total count)
-                            runOnUiThread(() -> progressText.setText("Collecting UR fragments…"));
+                            runOnUiThread(() ->
+                                    progressText.setText("Collecting UR fragments… (" + seenParts.size() + " unique)")
+                            );
                         }
                     }
                 }
@@ -213,16 +234,117 @@ public class UrScanActivity extends AppCompatActivity {
         }
     }
 
-    private String tryDecode(LuminanceSource src) {
+    private Result tryDecodeResult(LuminanceSource src) {
         try {
             BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(src));
-            Result r = reader.decodeWithState(bitmap);
-            return r.getText();
+            return reader.decodeWithState(bitmap);
         } catch (NotFoundException e) {
             return null;
         } finally {
             reader.reset();
         }
+    }
+
+    private static final class RotatedLuma {
+        final byte[] data;
+        final int width;
+        final int height;
+        RotatedLuma(byte[] data, int width, int height) {
+            this.data = data;
+            this.width = width;
+            this.height = height;
+        }
+    }
+
+    private RotatedLuma rotateLuma(byte[] y, int width, int height, int rotationDegrees) {
+        if (rotationDegrees == 0) {
+            return new RotatedLuma(y, width, height);
+        }
+
+        if (rotationDegrees == 180) {
+            byte[] out = new byte[y.length];
+            for (int i = 0; i < y.length; i++) {
+                out[i] = y[y.length - 1 - i];
+            }
+            return new RotatedLuma(out, width, height);
+        }
+
+        if (rotationDegrees == 90) {
+            // output dims: height x width
+            byte[] out = new byte[y.length];
+            int outW = height;
+            int outH = width;
+            // (x,y) -> (outX,outY) where outX = outW-1-y, outY = x
+            for (int x = 0; x < width; x++) {
+                for (int y0 = 0; y0 < height; y0++) {
+                    int inIndex = y0 * width + x;
+                    int outX = outW - 1 - y0;
+                    int outY = x;
+                    int outIndex = outY * outW + outX;
+                    out[outIndex] = y[inIndex];
+                }
+            }
+            return new RotatedLuma(out, outW, outH);
+        }
+
+        if (rotationDegrees == 270) {
+            // output dims: height x width
+            byte[] out = new byte[y.length];
+            int outW = height;
+            int outH = width;
+            // (x,y) -> (outX,outY) where outX = y, outY = outH-1-x
+            for (int x = 0; x < width; x++) {
+                for (int y0 = 0; y0 < height; y0++) {
+                    int inIndex = y0 * width + x;
+                    int outX = y0;
+                    int outY = outH - 1 - x;
+                    int outIndex = outY * outW + outX;
+                    out[outIndex] = y[inIndex];
+                }
+            }
+            return new RotatedLuma(out, outW, outH);
+        }
+
+        // Fallback
+        return new RotatedLuma(y, width, height);
+    }
+
+    private Rect computeRoiFromResultPoints(Result result, int imgW, int imgH) {
+        ResultPoint[] pts = result.getResultPoints();
+        if (pts == null || pts.length == 0) return null;
+
+        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
+        float maxX = 0, maxY = 0;
+
+        for (ResultPoint p : pts) {
+            if (p == null) continue;
+            float x = p.getX();
+            float y = p.getY();
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+        }
+
+        if (minX == Float.MAX_VALUE) return null;
+
+        // Expand box (QR finder points cover corners; expand to include full code)
+        float padX = (maxX - minX) * 0.6f;
+        float padY = (maxY - minY) * 0.6f;
+
+        int left = clamp((int)Math.floor(minX - padX), 0, imgW - 1);
+        int top = clamp((int)Math.floor(minY - padY), 0, imgH - 1);
+        int right = clamp((int)Math.ceil(maxX + padX), 0, imgW);
+        int bottom = clamp((int)Math.ceil(maxY + padY), 0, imgH);
+
+        // Avoid degenerate ROI
+        if (right - left < 100 || bottom - top < 100) return null;
+
+        return new Rect(left, top, right, bottom);
+    }
+
+    private int clamp(int v, int min, int max) {
+        return Math.max(min, Math.min(max, v));
     }
 
     private Rect centerSquareRoi(int w, int h, float scale) {
