@@ -23,12 +23,16 @@ public class UrScanActivity extends AppCompatActivity implements ZBarScannerView
     // De-dupe by total-index key so we don't flood the server
     private final HashSet<String> seenSeq = new HashSet<>();
 
-    private static final String API_PART_URL = "http://127.0.0.1:3000/api/ur/part";
-    private static final String API_DECODED_URL = "http://127.0.0.1:3000/api/ur/decoded";
+    private String apiPartUrl;
+    private String apiDecodedUrl;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        int port = getIntent().getIntExtra("LOCAL_PORT", 0);
+        if (port == 0) port = 3000; // fallback
+        apiPartUrl = "http://127.0.0.1:" + port + "/api/ur/part";
+        apiDecodedUrl = "http://127.0.0.1:" + port + "/api/ur/decoded";
         scannerView = new ZBarScannerView(this);
         setContentView(scannerView);
     }
@@ -106,7 +110,7 @@ public class UrScanActivity extends AppCompatActivity implements ZBarScannerView
     }
 
     private static void postPart(String part) throws Exception {
-        URL url = new URL(API_PART_URL);
+        URL url = new URL(apiPartUrl);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setConnectTimeout(1500);
         conn.setReadTimeout(2500);
@@ -127,7 +131,7 @@ public class UrScanActivity extends AppCompatActivity implements ZBarScannerView
 
     private static boolean isDecodedAvailable() {
         try {
-            URL url = new URL(API_DECODED_URL);
+            URL url = new URL(apiDecodedUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setConnectTimeout(1200);
             conn.setReadTimeout(1500);
