@@ -466,64 +466,47 @@ private final class AndroidImeBridge {
     public void vkOn() {
         runOnUiThread(() -> {
             vkMode = true;
-
-            // 1) Block IME at the WebView InputConnection level (best-effort)
             if (webView != null) webView.setImeBlocked(true);
-
-            // 2) Prevent WebView from becoming the focused Android "text editor" while VK is active.
             setWebViewFocusable(false);
             if (webView != null) webView.clearFocus();
-
-            // 3) Move focus to a non-text sink and hide IME. This is the key enforcement step.
             if (focusSink != null) focusSink.requestFocus();
             setShowSoftInputOnFocusCompat(false);
             hideImeNow();
         });
     }
 
-    // Add near other @JavascriptInterface bridges
-public final class AndroidAppBridge {
-    @android.webkit.JavascriptInterface
+    @JavascriptInterface
+    public void vkOff() {
+        runOnUiThread(() -> {
+            vkMode = false;
+
+            if (webView != null) webView.setImeBlocked(false);
+            setWebViewFocusable(true);
+
+            if (webView != null) webView.requestFocus();
+            setShowSoftInputOnFocusCompat(true);
+        });
+    }
+} // <-- AndroidImeBridge ends here
+
+// Now these are members of MainActivity (so onCreate can see them)
+private final class AndroidAppBridge {
+    @JavascriptInterface
     public void exitApp() {
         runOnUiThread(() -> {
-            // If you have a server instance, stop it here:
-            // if (assetHttpServer != null) assetHttpServer.stop();
-
-            // Close the Activity/task
             finishAffinity();
-
-            // Deterministic "force close" (optional but matches your requirement)
             android.os.Process.killProcess(android.os.Process.myPid());
             System.exit(0);
         });
     }
 }
 
-    
-    private final class NativeBridge {
-        @JavascriptInterface
-        public void startUrScan() {
-            runOnUiThread(() -> {
-                Intent i = new Intent(MainActivity.this, UrScanActivity.class);
-                startActivityForResult(i, REQ_UR_SCAN);
-            });
-        }
-    }
-    
+private final class NativeBridge {
     @JavascriptInterface
-    public void vkOff() {
+    public void startUrScan() {
         runOnUiThread(() -> {
-            vkMode = false;
-
-            // Restore normal focus/IME behavior.
-            if (webView != null) webView.setImeBlocked(false);
-            setWebViewFocusable(true);
-
-            if (webView != null) webView.requestFocus();
-            setShowSoftInputOnFocusCompat(true);
-
-            // Re-establish a clean InputConnection for normal typing.
-            restartImeNow();
+            Intent i = new Intent(MainActivity.this, UrScanActivity.class);
+            startActivityForResult(i, REQ_UR_SCAN);
         });
     }
 }
@@ -878,4 +861,5 @@ public final class AndroidAppBridge {
         clearPendingBridgeDownload();
     }
 }
+
 
