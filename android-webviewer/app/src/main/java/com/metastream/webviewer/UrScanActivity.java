@@ -109,7 +109,7 @@ public class UrScanActivity extends AppCompatActivity implements ZBarScannerView
         return seq.contains("-") ? seq : null;
     }
 
-    private static void postPart(String part) throws Exception {
+    private void postPart(String part) throws Exception {
         URL url = new URL(apiPartUrl);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setConnectTimeout(1500);
@@ -129,7 +129,7 @@ public class UrScanActivity extends AppCompatActivity implements ZBarScannerView
         conn.disconnect();
     }
 
-    private static boolean isDecodedAvailable() {
+    private boolean isDecodedAvailable() {
         try {
             URL url = new URL(apiDecodedUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
