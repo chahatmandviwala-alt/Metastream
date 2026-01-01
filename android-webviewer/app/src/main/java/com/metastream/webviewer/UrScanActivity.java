@@ -106,12 +106,36 @@ public class UrScanActivity extends AppCompatActivity {
             if (imageProxy.getImage() == null) return;
 
             // Use Y plane directly (luminance)
-            ByteBuffer yBuffer = imageProxy.getPlanes()[0].getBuffer();
-            byte[] yData = new byte[yBuffer.remaining()];
-            yBuffer.get(yData);
+            ImageProxy.PlaneProxy yPlane = imageProxy.getPlanes()[0];
+            ByteBuffer yBuffer = yPlane.getBuffer();
 
             int width = imageProxy.getWidth();
             int height = imageProxy.getHeight();
+
+            int rowStride = yPlane.getRowStride();
+            int pixelStride = yPlane.getPixelStride(); // usually 1 for Y plane
+
+            // Copy into a tight width*height luminance array (ZXing expects no row padding)
+            byte[] yData = new byte[width * height];
+            byte[] row = new byte[rowStride];
+
+            yBuffer.rewind();
+            for (int r = 0; r < height; r++) {
+                int rowStart = r * rowStride;
+
+                // Read one full row (including padding) into temp buffer
+                yBuffer.position(rowStart);
+                yBuffer.get(row, 0, Math.min(rowStride, yBuffer.remaining()));
+
+                if (pixelStride == 1) {
+                    System.arraycopy(row, 0, yData, r * width, width);
+                } else {
+                    // Defensive path (rare for Y plane)
+                    for (int c = 0; c < width; c++) {
+                        yData[r * width + c] = row[c * pixelStride];
+                    }
+                }
+            }
 
             PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(
                     yData,
