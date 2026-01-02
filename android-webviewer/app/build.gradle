@@ -34,8 +34,9 @@ dependencies {
     // QR generation (to return qrDataUrl like server.js does)
     implementation 'com.google.zxing:core:3.5.3'
 
-    implementation 'com.github.sparrowwallet:hummingbird:1.7.4'
+    implementation files('libs/hummingbird-1.7.4.jar')
 
 }
+
 
 
