@@ -664,11 +664,61 @@
   display: block;
 }
 
+/* --------------------------------------------------
+   Splash loading bar (fake)
+-------------------------------------------------- */
+#splash {
+  position: fixed;
+  inset: 0;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  z-index: 10000;
+  opacity: 1;
+  transition: opacity 400ms ease;
+}
 
+#splash.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#splash img {
+  max-width: 60%;
+  max-height: 60%;
+  object-fit: contain;
+}
+
+/* Loading bar container */
+#splash .loader {
+  width: min(280px, 78vw);
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.10);
+  overflow: hidden;
+}
+
+/* The moving fill */
+#splash .loader-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  transition: width 120ms linear;
+}
 
 </style>
 </head>
 <body>
+	<div id="splash">
+  <img src="tabs/docs/intro.png" alt="Intro">
+  <div class="loader" aria-hidden="true">
+    <div class="loader-fill" id="loaderFill"></div>
+  </div>
+</div>
 <aside class="sidebar" id="sidebar">
 <div class="sidebar-header">
 <div class="brand" title="Merged Wallet Tool">
@@ -1558,7 +1608,43 @@
   hideKeyboard = function() { _vkOrigHide(); syncVkButtonState(); };
   // --------------------------------------------------
 
+	// --------------------------------------------------
+// Intro splash + fake loading bar
+// --------------------------------------------------
+window.addEventListener("load", () => {
+  const splash = document.getElementById("splash");
+  const fill = document.getElementById("loaderFill");
+
+  const totalMs = 3000;       // splash visible duration
+  const tickMs = 60;          // animation update frequency
+  const start = performance.now();
+
+  const timer = setInterval(() => {
+    const elapsed = performance.now() - start;
+    const t = Math.min(1, elapsed / totalMs);
+
+    // Ease-out and cap at 92% until the end (feels more realistic)
+    const eased = 1 - Math.pow(1 - t, 2);
+    const percent = Math.min(100, eased * 100);
+
+    if (fill) fill.style.width = percent.toFixed(1) + "%";
+
+    if (t >= 1) {
+      clearInterval(timer);
+
+      // Finish to 100% briefly, then fade out splash
+      if (fill) fill.style.width = "100%";
+
+      setTimeout(() => {
+        splash.classList.add("hidden");
+        setTimeout(() => splash.remove(), 450);
+      }, 150);
+    }
+  }, tickMs);
+});
+
 </script>
 
 </body>
 </html>
+
