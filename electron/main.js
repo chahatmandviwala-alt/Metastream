@@ -44,7 +44,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    show: true,
+    fullscreen: true,
     icon: iconPath, // Safe across platforms (Windows prefers .ico, Linux .png)
     webPreferences: {
       nodeIntegration: false,
