@@ -704,7 +704,11 @@
             <button id="removeWalletBtn" class="btn danger" type="button" style="margin-top: 0px; display:none;">Remove wallet</button>
           </div>
 
-          <!-- (1) Camera status removed from UI per request -->
+          <!-- Scan diagnostics (no QR contents or secrets displayed) -->
+          <div id="scanProgress" class="muted small" aria-live="polite"
+               style="margin-top:6px; text-align:center; font-size:12px;">
+            Camera not started.
+          </div>
         </div>
 
         <!-- Unlock Wallet -->
@@ -1051,6 +1055,10 @@
       let html5QrCode = null;
       let isRunning = false;
       let seen = new Set();
+      const pendingParts = new Set();
+      const retryAfter = new Map();
+      let scanComplete = false;
+      const scanProgressEl = document.getElementById('scanProgress');
       let sigQr = null;
 
       // Wallet state
@@ -1522,6 +1530,10 @@
         setTxActionsVisible(false);
 
         seen.clear();
+        pendingParts.clear();
+        retryAfter.clear();
+        scanComplete = false;
+        if (scanProgressEl) scanProgressEl.textContent = 'Ready for QR frames.';
         try {
           await postJSON('/api/ur/reset', {});
           if (resultEl) {
@@ -1537,35 +1549,66 @@
       }
 
       async function onScanSuccess(decodedText) {
-        const part = decodedText.trim();
-        if (!/^ur:eth-sign-request\//i.test(part)) return;
-        if (seen.has(part)) return;
-        seen.add(part);
+        const part = String(decodedText || '').trim().toLowerCase();
+        if (!/^ur:eth-sign-request\//.test(part)) return;
+        if (scanComplete || seen.has(part) || pendingParts.has(part)) return;
+        if (Date.now() < (retryAfter.get(part) || 0)) return;
 
-        log('Frame → ' + part.slice(0, 60) + (part.length > 60 ? '…' : ''));
-
+        // Do not mark a frame as seen until the backend acknowledges it.
+        pendingParts.add(part);
         try {
           const reply = await postJSON('/api/ur/part', { part });
+
           if (reply.status === 'collecting') {
-            // (1) No camera status UI; keep info in hidden result/log only
-            if (resultEl) resultEl.textContent = 'Collecting parts… keep scanning.';
+            if (reply.accepted === false) {
+              // Some rejected QR frames are transient; allow a later retry.
+              retryAfter.set(part, Date.now() + 1000);
+            } else {
+              // Compatible with Electron: it doesn't return 'accepted'.
+              seen.add(part);
+              retryAfter.delete(part);
+            }
+            if (scanProgressEl) {
+              if (typeof reply.processedParts === 'number') {
+                const processed = reply.processedParts;
+                const expected = reply.expectedParts || '?';
+                const reconstructed = reply.receivedParts || 0;
+                const pct = Math.round(100 * (reply.progress || 0));
+                scanProgressEl.textContent =
+                  (reply.accepted === false ? 'Last frame rejected. ' : '') +
+                  `Decoder: ${processed} processed; ${reconstructed}/${expected} fragments ` +
+                  `reconstructed (~${pct}% estimated).`;
+              } else {
+                scanProgressEl.textContent = `Collecting frames: ${seen.size} sent.`;
+              }
+            }
           } else if (reply.status === 'error') {
-            if (resultEl) resultEl.textContent = 'Decode error on server: ' + reply.error;
-            log('ERROR: ' + reply.error);
+            scanComplete = true;
+            if (scanProgressEl) scanProgressEl.textContent = 'Decoder error: ' + (reply.error || 'unknown');
+            log('Decoder error: ' + (reply.error || 'unknown'));
+            await stopCamera();
           } else if (reply.status === 'complete') {
+            scanComplete = true;
+            seen.add(part);
+            if (scanProgressEl) scanProgressEl.textContent = 'QR request reconstructed successfully.';
             if (resultEl) {
-              resultEl.innerHTML = `
-                <div class="ok">✅ Completed on server.</div>
-                <div>Type: <code>${reply.type}</code></div>
-                <div>CBOR (hex): <code class="mono">${reply.cborHex.slice(0, 80)}${reply.cborHex.length>80?'…':''}</code></div>
-              `;
+              resultEl.textContent = 'Completed: ' + reply.type;
             }
             await stopCamera();
             await refreshDecoded();
+          } else {
+            // Unexpected backend response; permit the part to be retried.
+            retryAfter.set(part, Date.now() + 1000);
+            if (scanProgressEl) scanProgressEl.textContent = 'Unexpected scanner response.';
           }
         } catch (e) {
-          if (resultEl) resultEl.textContent = 'Network error posting frame: ' + (e.message || e);
-          log('Network error: ' + (e.message || e));
+          retryAfter.set(part, Date.now() + 1000);
+          if (scanProgressEl) scanProgressEl.textContent =
+            'Frame upload failed: ' + (e.message || e);
+          log('Frame upload failed: ' + (e.message || e));
+        } finally {
+          pendingParts.delete(part);
+          if (retryAfter.size > 1000) retryAfter.clear();
         }
       }
       function onScanFailure(_error) {}
@@ -1574,11 +1617,12 @@
         try {
           await resetServerDecoder();
           if (!html5QrCode) html5QrCode = new Html5Qrcode('reader');
-          const configs = { fps: 12, qrbox: { width: 220, height: 220 } };
+          const configs = { fps: 12 }; // Scan the full video frame
           await html5QrCode.start({ facingMode: 'environment' }, configs, onScanSuccess, onScanFailure);
           isRunning = true;
           cameraToggleBtn.textContent = 'Stop camera';
           log('Camera started.');
+          if (scanProgressEl) scanProgressEl.textContent = 'Scanning for QR frames…';
         } catch (e) {
           if (resultEl) resultEl.textContent = 'Failed to start camera: ' + (e.message || e);
           log('Start error: ' + (e.message || e));
