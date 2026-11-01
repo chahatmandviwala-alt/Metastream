@@ -25,6 +25,10 @@ jobs:
             node:22-bookworm \
             bash kiosk/build-iso.sh
 
+      - name: Fix ISO output ownership
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" out
+
       - name: Verify ISO output and record SHA-256
         run: |
           test -s out/Metastream-kiosk-amd64.iso
