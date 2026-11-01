@@ -1,0 +1,44 @@
+name: Metastream bootable kiosk ISO (prototype)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kiosk-iso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - name: Check out Metastream
+        uses: actions/checkout@v4
+
+      - name: Check free disk space
+        run: df -h .
+
+      - name: Build live kiosk ISO in Debian 12 container
+        run: |
+          docker run --rm --privileged \
+            --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/workspace" \
+            --workdir /workspace \
+            node:22-bookworm \
+            bash kiosk/build-iso.sh
+
+      - name: Verify ISO output and record SHA-256
+        run: |
+          test -s out/Metastream-kiosk-amd64.iso
+          file out/Metastream-kiosk-amd64.iso
+          (cd out && sha256sum Metastream-kiosk-amd64.iso > SHA256SUMS)
+          cat out/SHA256SUMS
+
+      - name: Publish ISO as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Metastream-kiosk-ISO
+          path: |
+            out/Metastream-kiosk-amd64.iso
+            out/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
