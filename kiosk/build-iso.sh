@@ -51,7 +51,7 @@ lb config \
   --apt-recommends false \
   --apt-indices false \
   --archive-areas main \
-  --bootappend-live 'boot=live nopersistence swap=false ipv6.disable=1'
+  --bootappend-live 'boot=live nopersistence swap=false ipv6.disable=1 live-config.nottyautologin'
 
 mkdir -p config/package-lists \
   config/includes.chroot/opt/metastream \
@@ -77,6 +77,10 @@ xserver-xorg-input-libinput
 xserver-xorg-legacy
 xinit
 x11-xserver-utils
+x11-utils
+libgl1
+libegl1
+libgl1-mesa-dri
 matchbox-window-manager
 dbus-x11
 libgtk-3-0
@@ -166,6 +170,27 @@ Storage=volatile
 RuntimeMaxUse=16M
 JOURNAL
 
+cat > config/includes.chroot/usr/local/bin/metastream-start-session <<'STARTSESSION'
+#!/bin/bash
+# Called after tty1 auto-login. Keep failures visible instead of restarting
+# agetty and hiding Xorg errors behind a blinking cursor.
+set -u
+export HOME=/home/kiosk
+cd "$HOME" || exit 1
+LOG="$HOME/metastream-startx.log"  # Volatile: live system uses RAM overlay.
+printf '\n[Metastream] tty1 login worked; starting graphical kiosk...\n'
+printf '[Metastream] If the screen remains black, startup errors will appear here.\n'
+/usr/bin/startx /usr/local/bin/metastream-kiosk-session -- :0 vt1 -nolisten tcp >"$LOG" 2>&1
+RC=$?
+printf '\n[Metastream] Graphical session exited (code %s).\n' "$RC"
+printf '[Metastream] Last lines of Xorg/startx log:\n'
+tail -n 65 "$LOG" 2>/dev/null || true
+printf '\n[Metastream] Startup stopped for diagnosis; no login shell is available.\n'
+# Avoid rapidly restarting getty and losing the failure message.
+while :; do sleep 3600; done
+STARTSESSION
+chmod 0755 config/includes.chroot/usr/local/bin/metastream-start-session
+
 cat > config/includes.chroot/usr/local/bin/metastream-kiosk-session <<'SESSION'
 #!/bin/sh
 # Called from a login on tty1; no menu, no conventional desktop.
@@ -177,11 +202,25 @@ unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 /usr/bin/xset s off 2>/dev/null || true
 /usr/bin/xset -dpms 2>/dev/null || true
 /usr/bin/xset s noblank 2>/dev/null || true
+# A dark-blue background indicates Xorg is running even before Electron starts.
+/usr/bin/xsetroot -solid '#25364a' 2>/dev/null || true
 /usr/bin/matchbox-window-manager -use_titlebar no &
 
-# Restart Metastream if it exits; never fall back to a login shell.
+# Electron writes startup diagnostics to RAM, never to disk persistence.
+APPLOG="$HOME/metastream-electron.log"
 while :; do
-  /usr/local/bin/metastream
+  echo '[Metastream] Starting Electron...' >> "$APPLOG"
+  START=$(date +%s)
+  /usr/local/bin/metastream --ozone-platform=x11 --disable-gpu >> "$APPLOG" 2>&1
+  RC=$?
+  echo "[Metastream] Electron exited with status $RC" >> "$APPLOG"
+  NOW=$(date +%s)
+  if [ $((NOW - START)) -lt 12 ]; then
+    # Don't silently spin forever when Electron fails to start.
+    /usr/bin/xmessage -center -timeout 12 \
+      "Metastream could not start (exit code $RC).\nStartup log: /home/kiosk/metastream-electron.log\nThis diagnostic message will retry automatically." \
+      >/dev/null 2>&1 || true
+  fi
   sleep 2
 done
 SESSION
@@ -231,7 +270,7 @@ done
 cat > /home/kiosk/.bash_profile <<'PROFILE'
 # tty1 is the only permitted visible login; replace shell with X11 kiosk session.
 if [ "$(tty)" = /dev/tty1 ] && [ -z "${DISPLAY:-}" ]; then
-    exec /usr/bin/startx /usr/local/bin/metastream-kiosk-session -- :0 vt1 -nolisten tcp
+    exec /usr/local/bin/metastream-start-session
 fi
 # Any non-kiosk shell returns immediately rather than remaining interactive.
 exit
@@ -245,6 +284,15 @@ if [ -f /opt/metastream/chrome-sandbox ]; then
   chmod 4755 /opt/metastream/chrome-sandbox
 fi
 
+# Fail ISO construction if the packaged Electron binary lacks shared libraries.
+# A missing library often causes silent instant exit once the graphical session starts.
+if ldd /usr/local/bin/metastream | grep -q 'not found'; then
+  echo 'ERROR: Electron has missing shared libraries in live system:' >&2
+  ldd /usr/local/bin/metastream | grep 'not found' >&2 || true
+  exit 1
+fi
+
+systemctl enable getty@tty1.service
 systemctl enable nftables.service
 systemctl enable metastream-network-down.service
 for svc in NetworkManager.service systemd-networkd.service wpa_supplicant.service bluetooth.service; do
