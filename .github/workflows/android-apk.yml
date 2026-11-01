@@ -32,14 +32,16 @@ jobs:
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
       - name: Accept licenses
         run: yes | sdkmanager --licenses
 
       - name: Install SDK packages (API 33)
         run: |
-          sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools"
+          sdkmanager "platforms;android-33" "build-tools;33.0.2"
 
       - name: Download Gradle 7.6.4
         run: |
