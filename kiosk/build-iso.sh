@@ -106,8 +106,25 @@ iproute2
 user-setup
 PACKAGES
 
+# Verify the Electron-bundled multimedia library was packaged.
+if [[ ! -s "$APP_DIR/libffmpeg.so" ]]; then
+  echo 'ERROR: Electron packaging did not include libffmpeg.so.' >&2
+  echo "Expected: $APP_DIR/libffmpeg.so" >&2
+  find "$APP_DIR" -maxdepth 2 -name '*ffmpeg*' -print >&2 || true
+  exit 1
+fi
+
 cp -a "$APP_DIR/." config/includes.chroot/opt/metastream/
-ln -s "/opt/metastream/$APP_EXEC" config/includes.chroot/usr/local/bin/metastream
+
+# Important: do NOT launch the Electron binary through a symlink.
+# Linux dynamic linking may fail to resolve bundled libraries relative to
+# symlinked executables. Execute the real binary directly instead.
+cat > config/includes.chroot/usr/local/bin/metastream <<LAUNCHER
+#!/bin/sh
+export LD_LIBRARY_PATH="/opt/metastream\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+exec "/opt/metastream/$APP_EXEC" "\$@"
+LAUNCHER
+chmod 0755 config/includes.chroot/usr/local/bin/metastream
 
 cat > config/includes.chroot/etc/nftables.conf <<'NFT'
 #!/usr/sbin/nft -f
@@ -284,13 +301,29 @@ if [ -f /opt/metastream/chrome-sandbox ]; then
   chmod 4755 /opt/metastream/chrome-sandbox
 fi
 
-# Fail ISO construction if the packaged Electron binary lacks shared libraries.
-# A missing library often causes silent instant exit once the graphical session starts.
-if ldd /usr/local/bin/metastream | grep -q 'not found'; then
-  echo 'ERROR: Electron has missing shared libraries in live system:' >&2
-  ldd /usr/local/bin/metastream | grep 'not found' >&2 || true
+# Check the *real* Electron binary, not the /usr/local/bin launcher.
+# Electron normally bundles libffmpeg.so next to the executable.
+# LD_LIBRARY_PATH mirrors the runtime launcher to avoid false negatives.
+if [ ! -s /opt/metastream/libffmpeg.so ]; then
+  echo 'ERROR: Electron is missing its bundled libffmpeg.so.' >&2
   exit 1
 fi
+if [ -x /opt/metastream/metastream ]; then
+  electron_bin=/opt/metastream/metastream
+elif [ -x /opt/metastream/Metastream ]; then
+  electron_bin=/opt/metastream/Metastream
+else
+  echo 'ERROR: Electron executable not found in /opt/metastream.' >&2
+  exit 1
+fi
+missing_libs=$(LD_LIBRARY_PATH="/opt/metastream${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+  ldd "$electron_bin" | grep 'not found' || true)
+if [ -n "$missing_libs" ]; then
+  echo 'ERROR: Electron has missing shared libraries in live system:' >&2
+  printf '%s\n' "$missing_libs" >&2
+  exit 1
+fi
+echo '[Metastream] Electron bundled library check passed.'
 
 systemctl enable getty@tty1.service
 systemctl enable nftables.service
