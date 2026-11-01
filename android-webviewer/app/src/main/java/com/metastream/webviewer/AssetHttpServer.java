@@ -26,6 +26,9 @@ import java.util.zip.CRC32;
 
 import fi.iki.elonen.NanoHTTPD;
 
+import com.sparrowwallet.hummingbird.URDecoder;
+import com.sparrowwallet.hummingbird.ResultType;
+
 /**
  * Local offline HTTP server:
  *   - Serves web UI from android_asset/ (copied from /public at build time)
@@ -52,6 +55,10 @@ public class AssetHttpServer extends NanoHTTPD {
         super("127.0.0.1", PORT);
         this.appContext = context.getApplicationContext();
         this.assets = this.appContext.getAssets();
+
+	private final Object urLock = new Object();
+    private URDecoder multipartUrDecoder = new URDecoder();
+		
     }
 
     // --------------------------
@@ -112,10 +119,13 @@ if (uri.startsWith("/api/")) {
         return handleApiGen(postData);
     }
     if ("/api/ur/reset".equals(uri) && method == Method.POST) {
-        lastUrType = null;
-        lastUrCbor = null;
+        synchronized (urLock) {
+            multipartUrDecoder = new URDecoder();
+            lastUrType = null;
+            lastUrCbor = null;
+        }
         return jsonOk("{\"ok\":true}");
-    }
+    
     if ("/api/ur/part".equals(uri) && method == Method.POST) {
         return handleApiUrPart(postData);
     }
