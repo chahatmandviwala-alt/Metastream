@@ -271,7 +271,12 @@ String urText = ("ur:crypto-hdkey/" + urBody).toUpperCase(Locale.ROOT);
     private Response handleApiUrPart(String body) throws Exception {
         String part = jsonGetString(body, "part", "").trim();
 
-        if (part.isEmpty()) {
+        // Multipart UR: ur:type/sequence-total/fragment
+        if (part.split("/", -1).length == 3) {
+            return handleMultipartUrPart(part);
+        }
+		
+		if (part.isEmpty()) {
             return jsonError(Response.Status.BAD_REQUEST, "Missing { part } string");
         }
 
@@ -470,8 +475,59 @@ try {
             return jsonOk("{\"error\":\"" + escapeJson(e.getMessage() == null ? "decode error" : e.getMessage()) + "\"}");
         }
     }
+	
+private Response handleMultipartUrPart(String part) {
+    synchronized (urLock) {
 
-    // --------------------------
+        boolean accepted = multipartUrDecoder.receivePart(part);
+
+        if (!accepted) {
+            // Invalid or already-processed fragment.
+            return jsonOk("{\"status\":\"collecting\"}");
+        }
+
+        URDecoder.Result result = multipartUrDecoder.getResult();
+
+        if (result == null) {
+            double progress =
+                multipartUrDecoder.getEstimatedPercentComplete();
+
+            return jsonOk(
+                "{\"status\":\"collecting\",\"progress\":" +
+                progress + "}"
+            );
+        }
+
+        if (result.type != ResultType.SUCCESS ||
+            result.ur == null) {
+            return jsonOk(
+                "{\"status\":\"error\",\"error\":\"UR reconstruction failed\"}"
+            );
+        }
+
+        String type = result.ur.getType();
+
+        if (!"eth-sign-request".equals(type)) {
+            return jsonOk(
+                "{\"status\":\"error\",\"error\":\"Unexpected UR type\"}"
+            );
+        }
+
+        byte[] cbor = result.ur.getCborBytes();
+
+        lastUrType = type;
+        lastUrCbor = cbor;
+
+        return jsonOk(
+            "{\"status\":\"complete\"," +
+            "\"type\":\"" + type + "\"," +
+            "\"cborHex\":\"" + bytesToHex(cbor) + "\"," +
+            "\"ok\":true}"
+        );
+    }
+}
+
+// --------------------------
 // /api/sign  (Sign transaction)
 // --------------------------
 private Response handleApiSign(String body) throws Exception {
