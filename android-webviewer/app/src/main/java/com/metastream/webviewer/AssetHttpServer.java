@@ -51,14 +51,14 @@ public class AssetHttpServer extends NanoHTTPD {
     private volatile String lastUrType = null;
     private volatile byte[] lastUrCbor = null;
 
+    // Multipart UR decoder state
+    private final Object urLock = new Object();
+    private URDecoder multipartUrDecoder = new URDecoder();
+
     public AssetHttpServer(Context context) {
         super("127.0.0.1", PORT);
         this.appContext = context.getApplicationContext();
         this.assets = this.appContext.getAssets();
-
-	private final Object urLock = new Object();
-    private URDecoder multipartUrDecoder = new URDecoder();
-		
     }
 
     // --------------------------
@@ -125,7 +125,7 @@ if (uri.startsWith("/api/")) {
             lastUrCbor = null;
         }
         return jsonOk("{\"ok\":true}");
-    
+    }
     if ("/api/ur/part".equals(uri) && method == Method.POST) {
         return handleApiUrPart(postData);
     }
