@@ -51,7 +51,7 @@ public class AssetHttpServer extends NanoHTTPD {
     private volatile String lastUrType = null;
     private volatile byte[] lastUrCbor = null;
 
-    // Multipart UR decoder state
+    // Keep the multipart decoder alive across HTTP requests.
     private final Object urLock = new Object();
     private URDecoder multipartUrDecoder = new URDecoder();
 
@@ -106,8 +106,7 @@ public class AssetHttpServer extends NanoHTTPD {
                         "API " + method + " " + uri +
                                 (qs != null ? ("?" + qs) : "") +
                                 " ct=" + ct +
-                                " bodyLen=" + (postData != null ? postData.length() : 0) +
-                                " bodyPrefix=" + safePrefix(postData, 400)
+                                " bodyLen=" + (postData != null ? postData.length() : 0)
                 );
             }
 
@@ -478,51 +477,56 @@ try {
 	
 private Response handleMultipartUrPart(String part) {
     synchronized (urLock) {
+        // Hummingbird expects a complete BC-UR fragment; normalize consistently
+        // with the Electron server. Never log its potentially sensitive content.
+        final String normalized = part.trim().toLowerCase(Locale.ROOT);
+        final boolean accepted = multipartUrDecoder.receivePart(normalized);
+        final URDecoder.Result result = multipartUrDecoder.getResult();
+        final int processedParts = multipartUrDecoder.getProcessedPartsCount();
+        final int expectedParts = multipartUrDecoder.getExpectedPartCount();
+        final int receivedParts = multipartUrDecoder.getReceivedPartIndexes().size();
+        final double progress = multipartUrDecoder.getEstimatedPercentComplete();
 
-        boolean accepted = multipartUrDecoder.receivePart(part);
+        Log.i(TAG, "BC-UR: accepted=" + accepted
+                + " processed=" + processedParts
+                + " expected=" + expectedParts
+                + " reconstructed=" + receivedParts
+                + " complete=" + (result != null));
 
-        if (!accepted) {
-            // Invalid or already-processed fragment.
-            return jsonOk("{\"status\":\"collecting\"}");
-        }
-
-        URDecoder.Result result = multipartUrDecoder.getResult();
-
+        // A rejected part is NOT evidence of progress. Tell the frontend so it
+        // can retry and show that no fragments are being accepted.
         if (result == null) {
-            double progress =
-                multipartUrDecoder.getEstimatedPercentComplete();
-
             return jsonOk(
-                "{\"status\":\"collecting\",\"progress\":" +
-                progress + "}"
+                    "{\"status\":\"collecting\","
+                            + "\"accepted\":" + accepted + ","
+                            + "\"processedParts\":" + processedParts + ","
+                            + "\"expectedParts\":" + expectedParts + ","
+                            + "\"receivedParts\":" + receivedParts + ","
+                            + "\"progress\":" + progress + "}"
             );
         }
 
-        if (result.type != ResultType.SUCCESS ||
-            result.ur == null) {
-            return jsonOk(
-                "{\"status\":\"error\",\"error\":\"UR reconstruction failed\"}"
-            );
+        // Check completion BEFORE handling a rejected part: receivePart returns
+        // false after the decoder has already completed, which can happen when
+        // multiple HTTP requests overlap.
+        if (result.type != ResultType.SUCCESS || result.ur == null) {
+            return jsonOk("{\"status\":\"error\",\"error\":\"UR reconstruction failed\"}");
         }
 
-        String type = result.ur.getType();
-
+        final String type = result.ur.getType();
         if (!"eth-sign-request".equals(type)) {
-            return jsonOk(
-                "{\"status\":\"error\",\"error\":\"Unexpected UR type\"}"
-            );
+            return jsonOk("{\"status\":\"error\",\"error\":\"Unexpected UR type\"}");
         }
 
-        byte[] cbor = result.ur.getCborBytes();
-
+        final byte[] cbor = result.ur.getCborBytes();
         lastUrType = type;
         lastUrCbor = cbor;
 
         return jsonOk(
-            "{\"status\":\"complete\"," +
-            "\"type\":\"" + type + "\"," +
-            "\"cborHex\":\"" + bytesToHex(cbor) + "\"," +
-            "\"ok\":true}"
+                "{\"status\":\"complete\","
+                        + "\"type\":\"" + type + "\","
+                        + "\"cborHex\":\"" + bytesToHex(cbor) + "\","
+                        + "\"ok\":true}"
         );
     }
 }
