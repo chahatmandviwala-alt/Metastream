@@ -78,6 +78,7 @@ xserver-xorg-legacy
 xinit
 x11-xserver-utils
 x11-utils
+xfonts-base
 libgl1
 libegl1
 libgl1-mesa-dri
@@ -209,36 +210,69 @@ STARTSESSION
 chmod 0755 config/includes.chroot/usr/local/bin/metastream-start-session
 
 cat > config/includes.chroot/usr/local/bin/metastream-kiosk-session <<'SESSION'
-#!/bin/sh
-# Called from a login on tty1; no menu, no conventional desktop.
+#!/bin/bash
+# Temporary diagnostic kiosk session: no terminal, desktop, network or disk persistence.
+# Shows a visible X11 probe before launching Electron, and an error dialog on crash.
+set -u
 export METASTREAM_KIOSK=1
 export HOST=127.0.0.1
 export PORT=43110
+export ELECTRON_ENABLE_LOGGING=1
+export LIBGL_ALWAYS_SOFTWARE=1
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
+
+APPLOG="$HOME/metastream-electron.log"
+XLOG="$HOME/metastream-x11-check.log"
+FAILSCREEN="$HOME/metastream-failure.txt"
+
+# First verify that an X client can connect to the display.
+if ! /usr/bin/xdpyinfo -display "${DISPLAY:-:0}" >"$XLOG" 2>&1; then
+  echo '[Metastream] ERROR: Xorg is running but X clients cannot connect.' >&2
+  tail -n 12 "$XLOG" >&2
+  exit 23
+fi
 
 /usr/bin/xset s off 2>/dev/null || true
 /usr/bin/xset -dpms 2>/dev/null || true
 /usr/bin/xset s noblank 2>/dev/null || true
-# A dark-blue background indicates Xorg is running even before Electron starts.
 /usr/bin/xsetroot -solid '#25364a' 2>/dev/null || true
-/usr/bin/matchbox-window-manager -use_titlebar no &
+/usr/bin/matchbox-window-manager -use_titlebar no >>"$HOME/metastream-wm.log" 2>&1 &
 
-# Electron writes startup diagnostics to RAM, never to disk persistence.
-APPLOG="$HOME/metastream-electron.log"
+# IMPORTANT: this is deliberately a diagnostic step. If this dialog appears,
+# the X server, display permissions and simple X11 windows are functional.
+/usr/bin/xmessage -center -timeout 10 -buttons 'Continue:0' \
+    -title 'Metastream X11 diagnostic' \
+    'Metastream: X11 graphics test succeeded.\n\nElectron will launch after this message.\nPlease remember whether this message appeared.' \
+    >/dev/null 2>&1 || true
+
 while :; do
-  echo '[Metastream] Starting Electron...' >> "$APPLOG"
-  START=$(date +%s)
-  /usr/local/bin/metastream --ozone-platform=x11 --disable-gpu >> "$APPLOG" 2>&1
-  RC=$?
-  echo "[Metastream] Electron exited with status $RC" >> "$APPLOG"
-  NOW=$(date +%s)
-  if [ $((NOW - START)) -lt 12 ]; then
-    # Don't silently spin forever when Electron fails to start.
-    /usr/bin/xmessage -center -timeout 12 \
-      "Metastream could not start (exit code $RC).\nStartup log: /home/kiosk/metastream-electron.log\nThis diagnostic message will retry automatically." \
-      >/dev/null 2>&1 || true
+  : > "$APPLOG"
+  printf '[Metastream] Launching Electron on DISPLAY=%s, port=%s\n' "${DISPLAY:-unset}" "$PORT" >>"$APPLOG"
+
+  # Start an isolated D-Bus session for Chromium/Electron.
+  if command -v dbus-run-session >/dev/null 2>&1; then
+    dbus-run-session -- /usr/local/bin/metastream \
+        --ozone-platform=x11 --disable-gpu >>"$APPLOG" 2>&1
+    rc=$?
+  else
+    /usr/local/bin/metastream --ozone-platform=x11 --disable-gpu >>"$APPLOG" 2>&1
+    rc=$?
   fi
-  sleep 2
+
+  {
+    printf 'Metastream Electron exited (code %s).\n' "$rc"
+    printf 'X11 graphical session is running. App startup failed.\n\n'
+    printf 'Last 20 Electron output lines:\n'
+    tail -n 20 "$APPLOG" 2>/dev/null || true
+    printf '\nThis screen will retry after you dismiss it.\n'
+    printf 'Do NOT share private keys, seed phrases, or QR payloads.\n'
+  } > "$FAILSCREEN"
+
+  # Show errors on the monitor instead of silently restarting a black screen.
+  /usr/bin/xmessage -center -buttons 'Retry:0' \
+      -title 'Metastream Electron startup error' -file "$FAILSCREEN" \
+      >/dev/null 2>&1 || true
+  sleep 3
 done
 SESSION
 chmod 0755 config/includes.chroot/usr/local/bin/metastream-kiosk-session
