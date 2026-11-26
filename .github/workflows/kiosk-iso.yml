@@ -1,4 +1,4 @@
-name: Metastream bootable kiosk ISO (prototype)
+name: Bootable kiosk ISO
 
 on:
   workflow_dispatch:
