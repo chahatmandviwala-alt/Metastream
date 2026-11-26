@@ -32,11 +32,13 @@ jobs:
         run: npm ci
 
       # IMPORTANT: call electron-builder directly so we don't inherit "-mwl" from package.json scripts
+      # On Windows, skip @electron/rebuild: secp256k1 and keccak already ship N-API prebuilds,
+      # and windows-latest (VS 2026 / v18) is unrecognized by the bundled @electron/node-gyp.
       - name: Build (OS-specific)
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            npx electron-builder --win --publish never
+            npx electron-builder --win --publish never -c.npmRebuild=false
           elif [[ "${{ runner.os }}" == "Linux" ]]; then
             npx electron-builder --linux --publish never
           else
