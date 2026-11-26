@@ -1,4 +1,4 @@
-name: Build and publish (Windows EXE + Linux AppImage)
+name: Build and publish (Windows EXE + Linux AppImage + Android APK + Kiosk ISO)
 
 on:
   push:
@@ -6,10 +6,11 @@ on:
       - "v*.*.*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build:
+  desktop:
+    name: Desktop (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -43,13 +44,180 @@ jobs:
             exit 1
           fi
 
+      - name: Stage desktop release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          shopt -s nullglob
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            for f in dist/*.exe; do
+              base="$(basename "$f")"
+              if [[ "$base" != "elevate.exe" && "$base" != "Metastream.exe" ]]; then
+                safe_base="${base// /-}"
+                cp "$f" "release-assets/$safe_base"
+              fi
+            done
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            cp dist/Metastream-*.AppImage release-assets/
+          fi
+          ls -lh release-assets/
+          test -n "$(ls -A release-assets)"
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-desktop-${{ matrix.os }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 1
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install Android node-server deps
+        run: |
+          cd android-webviewer/node-server
+          npm install --no-audit --no-fund
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Accept licenses
+        run: (yes || true) | sdkmanager --licenses
+
+      - name: Install SDK packages (API 33)
+        run: |
+          sdkmanager "platforms;android-33" "build-tools;33.0.2"
+
+      - name: Download Gradle 7.6.4
+        run: |
+          cd android-webviewer
+          curl -L -o gradle-7.6.4-bin.zip https://services.gradle.org/distributions/gradle-7.6.4-bin.zip
+          unzip -q gradle-7.6.4-bin.zip
+
+      - name: Copy web assets into APK
+        run: |
+          rm -rf android-webviewer/app/src/main/assets
+          mkdir -p android-webviewer/app/src/main/assets
+          cp -a public/. android-webviewer/app/src/main/assets/
+
+      - name: Copy Android node-server into APK assets
+        run: |
+          rm -rf android-webviewer/app/src/main/assets/node-server
+          mkdir -p android-webviewer/app/src/main/assets/node-server
+          cp -a android-webviewer/node-server/server-android.js android-webviewer/app/src/main/assets/node-server/
+          cp -a android-webviewer/node-server/package.json android-webviewer/app/src/main/assets/node-server/
+          cp -a android-webviewer/node-server/node_modules android-webviewer/app/src/main/assets/node-server/
+
+      - name: Build APK
+        run: |
+          cd android-webviewer
+          ./gradle-7.6.4/bin/gradle :app:assembleDebug --no-daemon
+
+      - name: Stage APK release asset
+        run: |
+          mkdir -p release-assets
+          cp android-webviewer/app/build/outputs/apk/debug/app-debug.apk release-assets/Metastream-android.apk
+          test -s release-assets/Metastream-android.apk
+          ls -lh release-assets/Metastream-android.apk
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-android-apk
+          path: release-assets/Metastream-android.apk
+          if-no-files-found: error
+          retention-days: 1
+
+  kiosk-iso:
+    name: Kiosk ISO (amd64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+
+    steps:
+      - name: Check out Metastream
+        uses: actions/checkout@v4
+
+      - name: Check free disk space
+        run: df -h .
+
+      - name: Build live kiosk ISO in Debian 12 container
+        run: |
+          docker run --rm --privileged \
+            --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/workspace" \
+            --workdir /workspace \
+            node:22-bookworm \
+            bash kiosk/build-iso.sh
+
+      - name: Fix ISO output ownership
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" out
+
+      - name: Verify ISO output
+        run: |
+          test -s out/Metastream-kiosk-amd64.iso
+          file out/Metastream-kiosk-amd64.iso
+
+      - name: Upload kiosk ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-kiosk-iso
+          path: out/Metastream-kiosk-amd64.iso
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  release:
+    name: Publish GitHub Release
+    needs: [desktop, android, kiosk-iso]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Verify all 4 platform assets and record SHA-256
+        shell: bash
+        run: |
+          ls -lh release-assets/
+          shopt -s nullglob
+          exes=(release-assets/*.exe)
+          appimages=(release-assets/*.AppImage)
+          test "${#exes[@]}" -gt 0
+          test "${#appimages[@]}" -gt 0
+          test -s release-assets/Metastream-android.apk
+          test -s release-assets/Metastream-kiosk-amd64.iso
+          (cd release-assets && sha256sum -- * > ../SHA256SUMS && mv ../SHA256SUMS ./SHA256SUMS)
+          cat release-assets/SHA256SUMS
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/Metastream-*.AppImage
-            dist/*.exe
-            !dist/elevate.exe
-            !dist/Metastream.exe
+          files: release-assets/*
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
