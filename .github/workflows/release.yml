@@ -1,4 +1,4 @@
-name: Build and publish (Windows EXE + Linux AppImage + Android APK + Kiosk ISO)
+name: Publish new release
 
 on:
   push:
