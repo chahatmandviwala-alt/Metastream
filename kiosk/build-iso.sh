@@ -50,12 +50,17 @@ lb config \
   --debian-installer none \
   --apt-recommends false \
   --apt-indices false \
-  --archive-areas main \
-  --bootappend-live 'boot=live nopersistence swap=false ipv6.disable=1 live-config.nottyautologin'
+  --archive-areas 'main non-free-firmware' \
+  --firmware-chroot false \
+  --firmware-binary false \
+  --bootappend-live 'boot=live nopersistence swap=false ipv6.disable=1 live-config.noautologin live-config.noroot' \
+  --bootappend-live-failsafe 'boot=live nopersistence swap=false ipv6.disable=1 live-config.noautologin live-config.noroot nomodeset'
 
 mkdir -p config/package-lists \
   config/includes.chroot/opt/metastream \
+  config/includes.chroot/etc/live/config.conf.d \
   config/includes.chroot/etc/systemd/system/getty@tty1.service.d \
+  config/includes.chroot/etc/systemd/logind.conf.d \
   config/includes.chroot/etc/X11/xorg.conf.d \
   config/includes.chroot/etc/X11 \
   config/includes.chroot/etc/modprobe.d \
@@ -71,6 +76,11 @@ live-config
 live-config-systemd
 systemd-sysv
 udev
+dbus
+libpam-systemd
+firmware-linux-free
+firmware-amd-graphics
+firmware-misc-nonfree
 xserver-xorg-core
 xserver-xorg-video-all
 xserver-xorg-input-libinput
@@ -104,7 +114,6 @@ ca-certificates
 nftables
 rfkill
 iproute2
-user-setup
 PACKAGES
 
 # Verify the Electron-bundled multimedia library was packaged.
@@ -162,12 +171,30 @@ blacklist rndis_host
 blacklist usbnet
 MODPROBE
 
+cat > config/includes.chroot/etc/live/config.conf.d/10-metastream.conf <<'LIVECONF'
+# Prevent live-config from overriding tty1 autologin, writing
+# /etc/profile.d/zz-live-config_xinit.sh (which hijacks tty1 before
+# ~/.bash_profile), or creating a default live user/sudo account.
+LIVE_HOSTNAME="metastream"
+LIVE_CONFIG_NOAUTOLOGIN="true"
+LIVE_CONFIG_NOTTYAUTOLOGIN="true"
+LIVE_CONFIG_NOX11AUTOLOGIN="true"
+LIVE_CONFIG_NOROOT="true"
+LIVE_CONFIG_NOCOMPONENTS="user-setup,sudo,xinit"
+LIVECONF
+
 cat > config/includes.chroot/etc/systemd/system/getty@tty1.service.d/autologin.conf <<'GETTY'
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin kiosk --noclear %I $TERM
 Type=idle
 GETTY
+
+cat > config/includes.chroot/etc/systemd/logind.conf.d/kiosk.conf <<'LOGIND'
+[Login]
+NAutoVTs=1
+ReserveVT=0
+LOGIND
 
 cat > config/includes.chroot/etc/X11/Xwrapper.config <<'XWRAPPER'
 allowed_users=console
@@ -196,9 +223,10 @@ set -u
 export HOME=/home/kiosk
 cd "$HOME" || exit 1
 LOG="$HOME/metastream-startx.log"  # Volatile: live system uses RAM overlay.
-printf '\n[Metastream] tty1 login worked; starting graphical kiosk...\n'
-printf '[Metastream] If the screen remains black, startup errors will appear here.\n'
-/usr/bin/startx /usr/local/bin/metastream-kiosk-session -- :0 vt1 -nolisten tcp >"$LOG" 2>&1
+printf '\n[Metastream] Starting graphical kiosk...\n'
+# Pass -keeptty alongside vt1 so rootless Xorg stays attached to the active
+# systemd-logind console session on KMS hardware.
+/usr/bin/startx /usr/local/bin/metastream-kiosk-session -- :0 vt1 -keeptty -nolisten tcp >"$LOG" 2>&1
 RC=$?
 printf '\n[Metastream] Graphical session exited (code %s).\n' "$RC"
 printf '[Metastream] Last lines of Xorg/startx log:\n'
@@ -211,8 +239,7 @@ chmod 0755 config/includes.chroot/usr/local/bin/metastream-start-session
 
 cat > config/includes.chroot/usr/local/bin/metastream-kiosk-session <<'SESSION'
 #!/bin/bash
-# Temporary diagnostic kiosk session: no terminal, desktop, network or disk persistence.
-# Shows a visible X11 probe before launching Electron, and an error dialog on crash.
+# Air-gapped kiosk session: no terminal, desktop, network, or disk persistence.
 set -u
 export METASTREAM_KIOSK=1
 export HOST=127.0.0.1
@@ -225,7 +252,7 @@ APPLOG="$HOME/metastream-electron.log"
 XLOG="$HOME/metastream-x11-check.log"
 FAILSCREEN="$HOME/metastream-failure.txt"
 
-# First verify that an X client can connect to the display.
+# Verify that an X client can connect to the display.
 if ! /usr/bin/xdpyinfo -display "${DISPLAY:-:0}" >"$XLOG" 2>&1; then
   echo '[Metastream] ERROR: Xorg is running but X clients cannot connect.' >&2
   tail -n 12 "$XLOG" >&2
@@ -235,15 +262,9 @@ fi
 /usr/bin/xset s off 2>/dev/null || true
 /usr/bin/xset -dpms 2>/dev/null || true
 /usr/bin/xset s noblank 2>/dev/null || true
-/usr/bin/xsetroot -solid '#25364a' 2>/dev/null || true
+/usr/bin/xsetroot -solid '#0f172a' 2>/dev/null || true
 /usr/bin/matchbox-window-manager -use_titlebar no >>"$HOME/metastream-wm.log" 2>&1 &
-
-# IMPORTANT: this is deliberately a diagnostic step. If this dialog appears,
-# the X server, display permissions and simple X11 windows are functional.
-/usr/bin/xmessage -center -timeout 10 -buttons 'Continue:0' \
-    -title 'Metastream X11 diagnostic' \
-    'Metastream: X11 graphics test succeeded.\n\nElectron will launch after this message.\nPlease remember whether this message appeared.' \
-    >/dev/null 2>&1 || true
+sleep 0.5
 
 while :; do
   : > "$APPLOG"
@@ -259,6 +280,12 @@ while :; do
     rc=$?
   fi
 
+  # Clean exit (for example, after "Clear & Close"): restart a fresh session.
+  if [ "$rc" -eq 0 ]; then
+    sleep 1
+    continue
+  fi
+
   {
     printf 'Metastream Electron exited (code %s).\n' "$rc"
     printf 'X11 graphical session is running. App startup failed.\n\n'
@@ -268,11 +295,11 @@ while :; do
     printf 'Do NOT share private keys, seed phrases, or QR payloads.\n'
   } > "$FAILSCREEN"
 
-  # Show errors on the monitor instead of silently restarting a black screen.
+  # Show unexpected crash details on the monitor instead of looping a blank screen.
   /usr/bin/xmessage -center -buttons 'Retry:0' \
       -title 'Metastream Electron startup error' -file "$FAILSCREEN" \
       >/dev/null 2>&1 || true
-  sleep 3
+  sleep 2
 done
 SESSION
 chmod 0755 config/includes.chroot/usr/local/bin/metastream-kiosk-session
@@ -328,6 +355,17 @@ exit
 PROFILE
 chown kiosk:kiosk /home/kiosk/.bash_profile
 chmod 0644 /home/kiosk/.bash_profile
+
+# Ensure no live-config xinit profile hook can intercept tty1 login before ~/.bash_profile.
+rm -f /etc/profile.d/zz-live-config_xinit.sh
+
+# Trim wireless/NIC firmware blobs shipped by firmware-misc-nonfree while keeping GPU firmware.
+rm -rf /lib/firmware/brcm /lib/firmware/3com /lib/firmware/e100 \
+  /lib/firmware/cxgb3 /lib/firmware/cxgb4 /lib/firmware/tigon \
+  /lib/firmware/tehuti /lib/firmware/kaweth /lib/firmware/wfx \
+  /lib/firmware/agere_*.bin /lib/firmware/mt76* /lib/firmware/mts_*.fw \
+  /lib/firmware/rt2*.bin /lib/firmware/rt3*.bin /lib/firmware/rt73.bin \
+  /lib/firmware/vntwusb.fw
 
 # Keep Chromium's sandbox; this helper is the standard fallback if user namespaces are unavailable.
 if [ -f /opt/metastream/chrome-sandbox ]; then

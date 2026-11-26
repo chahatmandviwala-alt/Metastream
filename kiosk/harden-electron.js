@@ -45,12 +45,13 @@ replaceExactly(
   main,
   '  mainWindow.loadURL(URL);',
   `  // Kiosk: deny popups, off-origin navigation, and ordinary developer shortcuts.
+  // Use globalThis.URL because electron/main.js defines a module-level string named URL.
   mainWindow.setMenuBarVisibility(false);
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  const kioskOrigin = new URL(URL).origin;
+  const kioskOrigin = new globalThis.URL(URL).origin;
   mainWindow.webContents.on('will-navigate', (event, destination) => {
     try {
-      if (new URL(destination).origin !== kioskOrigin) event.preventDefault();
+      if (new globalThis.URL(destination).origin !== kioskOrigin) event.preventDefault();
     } catch (_) { event.preventDefault(); }
   });
   mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -65,10 +66,15 @@ replaceExactly(
   mainWindow.webContents.session.setPermissionRequestHandler((contents, permission, callback) => {
     // Allow the camera only for Metastream's local page. Deny all other permissions.
     let localPage = false;
-    try { localPage = new URL(contents.getURL()).origin === kioskOrigin; } catch (_) {}
+    try { localPage = new globalThis.URL(contents.getURL()).origin === kioskOrigin; } catch (_) {}
     callback(permission === 'media' && localPage && contents.id === mainWindow.webContents.id);
   });
 
   mainWindow.loadURL(URL);`
+);
+replaceExactly(
+  main,
+  '  const MAX_RETRIES = 40;     // ~10 seconds at 250ms',
+  '  const MAX_RETRIES = 120;    // ~30 seconds at 250ms (slow live-USB headroom)'
 );
 console.log('Electron entrypoint and Express listener prepared for offline kiosk build.');
