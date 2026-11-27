@@ -90,6 +90,7 @@ xserver-xorg-video-all
 xserver-xorg-input-libinput
 xserver-xorg-legacy
 xinit
+xinput
 x11-xserver-utils
 x11-utils
 xfonts-base
@@ -284,7 +285,28 @@ fi
 /usr/bin/xset s off 2>/dev/null || true
 /usr/bin/xset -dpms 2>/dev/null || true
 /usr/bin/xset s noblank 2>/dev/null || true
-/usr/bin/xsetroot -solid '#0f172a' 2>/dev/null || true
+/usr/bin/xsetroot -solid '#437e8f' 2>/dev/null || true
+
+# Rootless Xorg uses native pixels for pointer travel. Give mice a modest
+# acceleration increase above Full HD. Keep touch input and display modes intact.
+mouse_speed=$(awk '/dimensions:/ {
+  split($2, size, "x")
+  diagonal = sqrt(size[1]^2 + size[2]^2)
+  gain = 0.45 * (diagonal / sqrt(1920^2 + 1080^2) - 1)
+  if (gain > 0.05) printf "%.2f", (gain < 0.65 ? gain : 0.65)
+  exit
+}' "$XLOG")
+if [[ -n "$mouse_speed" ]]; then
+  while read -r device_id; do
+    node=$(xinput list-props "$device_id" 2>/dev/null | awk -F'"' '/Device Node \([0-9]+\):/ {print $2; exit}')
+    [[ -n "$node" ]] || continue
+    properties=$(udevadm info --query=property --name="$node" 2>/dev/null) || continue
+    if [[ "$properties" == *ID_INPUT_MOUSE=1* && "$properties" != *ID_INPUT_TOUCHPAD=1* && "$properties" != *ID_INPUT_TOUCHSCREEN=1* ]]; then
+      xinput set-prop "$device_id" 'libinput Accel Speed' "$mouse_speed" 2>/dev/null || true
+    fi
+  done < <(xinput list --id-only 2>/dev/null)
+fi
+
 /usr/bin/matchbox-window-manager -use_titlebar no >>"$HOME/metastream-wm.log" 2>&1 &
 sleep 0.5
 

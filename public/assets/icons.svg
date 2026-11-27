@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+  <symbol id="home" viewBox="0 0 24 24">
+    <path d="m3 10 9-7 9 7M5 9v11h5v-6h4v6h5V9"/>
+  </symbol>
+  <symbol id="wallet" viewBox="0 0 24 24">
+    <path d="m4 7 12-4a1.4 1.4 0 0 1 1.8 1.3V7"/><path d="M19 11V8.3A1.3 1.3 0 0 0 17.7 7H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12.7a1.3 1.3 0 0 0 1.3-1.3V16"/>
+    <path d="M16 11h5v5h-5a2.5 2.5 0 0 1 0-5Z" fill="currentColor" fill-opacity=".12"/><path d="M16 13.5h.1"/>
+  </symbol>
+  <symbol id="dice" viewBox="0 0 24 24">
+    <path d="m12 2.5 9 5v9l-9 5-9-5v-9Z"/><path d="m3.3 7.6 8.7 5 8.7-5M12 12.6v8.6"/>
+    <path d="m12 12.6 8.7-5v8.8l-8.7 5Z" fill="currentColor" fill-opacity=".11" stroke="none"/>
+    <g fill="currentColor" stroke="none"><ellipse cx="12" cy="7.5" rx="1.4" ry=".85"/><ellipse cx="6.1" cy="12" rx=".8" ry="1.1"/><ellipse cx="9" cy="16.4" rx=".8" ry="1.1"/><ellipse cx="15" cy="16.7" rx=".8" ry="1.1"/><ellipse cx="17.1" cy="14" rx=".8" ry="1.1"/><ellipse cx="19" cy="11.3" rx=".8" ry="1.1"/></g>
+  </symbol>
+  <symbol id="key" viewBox="0 0 24 24">
+    <path d="M14.6 3.3a5.9 5.9 0 1 1-3.1 11L5 21H2.8v-3.5l2-2h2v-2l3.1-3.1a5.9 5.9 0 0 1 4.7-7.1Z" fill="currentColor" fill-opacity=".07"/><circle cx="16.6" cy="7.6" r="1.4"/>
+  </symbol>
+  <symbol id="connect" viewBox="0 0 24 24">
+    <path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/>
+    <path d="M7.5 7.5h3v3h-3zm6 0h3v3h-3zm-6 6h3v3h-3z" fill="currentColor" stroke="none"/>
+    <path d="M14 13.5h2.5v3M13 16.5h.2"/>
+  </symbol>
+  <symbol id="sign" viewBox="0 0 24 24">
+    <path d="M12 3H5a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-4M7.5 7.5h4M7.5 11H10"/>
+    <path d="m11 16 .9-3.8 7.4-7.4a1.4 1.4 0 0 1 2 0l.4.4a1.4 1.4 0 0 1 0 2l-7.3 7.4Zm6.6-9.5 2.4 2.4"/>
+  </symbol>
+  <symbol id="guide" viewBox="0 0 24 24">
+    <path d="M12 6C9.4 4.1 6 4 2.8 5v14c3.4-1 6.6-.7 9.2 1 2.6-1.7 5.8-2 9.2-1V5C18 4 14.6 4.1 12 6Zm0 0v14"/><path d="M5.6 8.5c1.2-.2 2.3 0 3.5.4m6 .1c1.1-.4 2.2-.6 3.3-.5"/>
+  </symbol>
+  <symbol id="keyboard" viewBox="0 0 24 24">
+    <rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M5.5 9h1m3 0h1m3 0h1m3 0h1m-13 3h1m3 0h1m3 0h1m3 0h1M8 15h8"/>
+  </symbol>
+  <symbol id="exit" viewBox="0 0 24 24">
+    <path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5m5-13 5 5-5 5M9 12h11"/>
+  </symbol>
+  <symbol id="panel" viewBox="0 0 24 24">
+    <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m7-11-3 3 3 3"/>
+  </symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+  <symbol id="back" viewBox="0 0 24 24"><path d="M19 12H5m6-6-6 6 6 6"/></symbol>
+  <symbol id="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="grid" viewBox="0 0 24 24">
+    <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.3"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.3"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.3"/><rect x="14" y="14" width="6.5" height="6.5" rx="1.3"/>
+  </symbol>
+  <symbol id="shield" viewBox="0 0 24 24">
+    <path d="m12 2.5 8 3.2v5.6c0 4.4-3 8.3-8 10.3-5-2-8-5.9-8-10.3V5.7z"/><path d="m8.5 11.7 2.3 2.4 4.8-5"/>
+  </symbol>
+  <symbol id="chip" viewBox="0 0 24 24">
+    <rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4M18 9h4m-4 6h4"/><rect x="10" y="10" width="4" height="4" rx=".5"/>
+  </symbol>
+</svg>

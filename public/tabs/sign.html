@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Sign Transaction</title>
@@ -8,711 +8,42 @@
     <script src="./libs/qrcode.min.js"></script>
     <script src="./libs/ethers.umd.min.js"></script>
 
-    <link rel="stylesheet" href="styles.css">
 
-    <style>
-      /* Define a CSS variable for consistency */
-	  :root{
-	    --max-width: 600px; /* keep yours */
-	    --bg: #fafbfc;
-	    --text: #0f172a;
-	    --muted:#475569;
-	    --border:#e2e8f0;
-	    --panel:#ffffff;
-	    --accent: #357CBA;
-	    --danger:#ef4444;
-	    --success:#22c55e;
- 	   --radius: 10px;
-
-	  /* Current layout had 2 columns with 8px gap. Approx. single block width was (max-width - gap)/2. */
-  	  --grid-gap: 8px;
- 	  --single-block-width: calc((var(--max-width) - var(--grid-gap)) / 2);
-
-	  /* Default for narrow screens (phone): do NOT apply the multiplier */
-	  --single-column-width: calc(var(--single-block-width) * 1);
-	  }
-
-	/* Only apply the 1.7x rule on wider screens (tablet/desktop) */
-	@media (min-width: 500px){
- 	 :root{
- 	   --single-column-width: calc(var(--single-block-width) * 1.7);
-	  }
-	}
-
-      #reader {
-        width: 100%;
-        max-width: 266px;   /* for example */
-        height: 200px;      /* match qrbox size */
-        margin: 0 auto;
-        overflow: hidden;
-      }
-
-      #reader video {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;  /* no cropping */
-      }
-
-      /* Make QR preview respect its container */
-      #sigQr canvas,
-      #sigQr img {
-        max-width: 100%;
-        max-height: 100%;
-        display: block;
-      }
-
-      /* New container for the sleeker layout */
-      #main-container {
-        max-width: var(--single-column-width);
-        padding: 0 8px; /* Small padding on edges for mobile view */
-        width: 100%;
-      }
-
-      /* Apply max-width to the header for consistency */
-      header {
-        max-width: var(--single-column-width);
-        margin: 8px auto 8px auto !important; /* Center the header */
-      }
-
-      /* --- CENTERING LOGIC ---
-         NOTE: Keeping your general centering approach, but we will stabilize layout by
-         fixing right-panel min-heights in JS (see syncRightPanelHeights()).
-      */
-      body {
-        margin: 0;
-        padding: 0;
-        min-height: 100vh;
-
-        display: flex;
-        flex-direction: column;
-
-        align-items: center;
-        justify-content: flex-start;
-
-        flex-wrap: wrap;
-        overflow: auto;
-      }
-
-      /* ===== Wallet banner styles (UPDATED) ===== */
-      .alert{
-        border-left: 4px solid;
-      }
-
-      .alert-red {
-        background-color: #ffdddd;  /* light red */
-        color: #a00000;             /* dark red text */
-        border-color: #d00000;
-      }
-
-      .alert-green{
-        background-color: #ddffea;
-        color: #065f46;
-        border-color: #16a34a;
-      }
-      /* ======================================== */
-
-      /* keystore-tool button styling */
-      .btn{
-        display:inline-block;
-        padding: 7px 6px;
-        border-radius: 8px;
-        border: 1px solid var(--accent);
-        color:#fff;
-        background: var(--accent);
-        font-weight: 600;
-        cursor:pointer;
-        font-size: 0.72rem;
-        box-shadow: none;
-      }
-
-      .btn.secondary{
-        background: transparent;
-        color: var(--accent);
-        border-color: var(--border);
-      }
-
-      .btn:disabled{
-        opacity: 0.65;
-        cursor:not-allowed;
-      }
-      .btn.secondary:hover,
-      .btn.secondary:active,
-      .btn.secondary:focus {
-        background: transparent;
-        color: var(--accent);
-        border-color: var(--border);
-      }
-
-      /* Wallet status pill (NEW) */
-      .status-pill{
-        position:absolute;
-        top:8px;
-        right:8px;
-        display:inline-flex;
-        align-items:center;
-        gap:6px;
-        padding:4px 8px;
-        border-radius:999px;
-        border:1px solid var(--border);
-        background: rgba(255,255,255,0.92);
-        backdrop-filter: blur(6px);
-        font-size: 11px;
-        line-height: 1;
-        color: var(--muted);
-        max-width: calc(100% - 16px);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        pointer-events:none; /* never interfere with camera */
-      }
-      .status-pill::before{
-        content:'';
-        width:8px;
-        height:8px;
-        border-radius:999px;
-        background: var(--danger);
-        flex:0 0 auto;
-      }
-      .status-pill--unlocked{
-        color: #065f46;
-        border-color: rgba(34,197,94,0.35);
-      }
-      .status-pill--unlocked::before{
-        background: var(--success);
-      }
-
-      /* Remove wallet button */
-      .btn.danger{
-        background: transparent;
-        border-color: var(--border);
-        color: var(--accent);
-      }
-      .btn.danger:disabled{
-        opacity: 0.65;
-      }
-
-      .compact-input[type="file"]{
-        padding: 4px 4px;
-      }
-
-      .compact-input[type="password"]{
-        padding: 7px 4px;
-      }
-
-      .compact-input[type="text"]{
-        padding: 7px 3px;
-      }
-
-      /* NEW: Single-column layout wrapper (replacing the 2x2 grid) */
-      .grid-2{
-        display: grid;
-        grid-template-columns: 1fr; /* single column */
-        gap: var(--grid-gap);
-        align-items: stretch;
-      }
-
-      /* In single-column mode, let cards size naturally */
-      .grid-2 > .card{
-        height: auto;
-        min-height: 0;
-        overflow: hidden;
-      }
-
-      .card{
-        box-sizing: border-box;
-        width: 100%;
-        border:3px solid var(--border);
-        border-radius:var(--radius);
-      }
-
-      .card > *{
-        min-width: 0;
-      }
-
-      #walletAlert{
-        min-height: 12px;
-        display: flex;
-        align-items: center;
-      }
-
-      #walletAlert{
-        margin: 0 !important;
-      }
-
-      #walletAlert {
-        margin-bottom: 0px !important;
-      }
-
-      #walletStatusRow{
-        margin-top: -10px !important;
-      }
-
-      #scanCard{
-        overflow: hidden;
-      }
-      #scanCard .actions{
-        overflow: auto;
-        max-height: 70px;
-      }
-
-      .tx-header{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-
-      .tx-header > *{
-        white-space: nowrap;
-      }
-
-      /* Optional small-screen behavior: still single column; just ensure inputs wrap */
-      @media (max-width: 760px){
-        #unlock-keystore > div,
-        #unlock-pkFile > div,
-        #unlock-manual > div,
-        #unlock-mnemonic > div,
-        #unlock-mnemonicPass > div{
-          flex-wrap: wrap !important;
-          align-items: stretch;
-        }
-      }
-	  
-      /* Header row */
-      #txCard .tx-header{
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-bottom: 6px;
-      }
-
-      #txCard .tx-title{
-        font-weight: 700;
-        font-size: 14px;
-        margin: 0;
-        text-align: left;
-        flex: 0 0 auto;
-      }
-
-      /* Buttons group: ONE-ROW behavior by default (wide screens) */
-      #txCard .tx-actions{
-        display:flex;
-         gap: 6px;
-         margin: 0;
-
-          /* Keep the actions on the right when in the same row */
-         margin-left: auto;
-         justify-content: flex-end;
-
-        /* Allow wrapping when needed */
-        flex-wrap: wrap;
-       }
-
-        #txCard .tx-actions .btn{
-        flex: 0 0 auto;        /* narrow buttons on wide screens */
-        white-space: nowrap;
-        margin: 0;
-      }
-
-       /* TWO-ROW behavior (narrow screens): actions take full width and buttons stretch */
-      @media (max-width: 520px){
-        #txCard .tx-actions{
-          flex: 1 1 100%;
-          width: 100%;
-          margin-left: 0;              /* no longer “push right” */
-          justify-content: space-between; /* spread across the row */
-        }
-
-        #txCard .tx-actions .btn{
-          flex: 1 1 0;                 /* each button expands */
-          min-width: 0;                /* prevents overflow in tight spaces */
-        }
-      }
-	  
-	  #walletAlert,
-      #walletUnlockedNote{
-        display: block !important;
-        width: 100%;
-        white-space: normal;
-        box-sizing: border-box;
-      }
-	  
-	  /* =========================
-      Sleeker "Unlock Wallet" UI
-      (layout-only; keeps logic)
-      ========================= */
-
-      #unlockCard {
-        gap: 10px;
-      }
-
-      #unlockCard .unlock-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-      }
-
-      #unlockCard .wallet-panel {
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 10px;
-        background: linear-gradient(180deg, rgba(250,251,252,0.9), rgba(255,255,255,0.95));
-        box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
-        overflow: hidden; /* keeps things tight */
-      }
-
-      #unlockCard .unlock-mode {
-        margin: 0 0 10px 0;
-        width: 100%;
-        border-radius: 10px;
-      }
-
-      /* Each mode section as a compact "form row" */
-      #unlockCard .unlock-section {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 10px;
-        align-items: end;
-      }
-
-      /* Two-field rows (keystore, mnemonic, mnemonicPass) */
-      #unlockCard .unlock-fields-2 {
-        display: grid;
-        grid-template-columns: 1fr 0.7fr;
-        gap: 10px;
-      }
-
-      /* Three-field rows (mnemonic+pass) */
-      #unlockCard .unlock-fields-3 {
-        display: grid;
-        grid-template-columns: 1.3fr 0.8fr 0.8fr;
-        gap: 10px;
-      }
-
-      #unlockCard label {
-        display: block;
-        font-weight: 700;
-        font-size: 12px;
-        color: var(--muted);
-        margin-bottom: 4px;
-      }
-
-      #unlockCard input.compact-input,
-      #unlockCard select.compact-input {
-        width: 100%;
-        border-radius: 10px;
-        border: 1px solid var(--border);
-        background: rgba(255,255,255,0.95);
-      }
-
-      #unlockCard .unlock-action {
-        display: flex;
-        align-items: end;
-        justify-content: end;
-      }
-
-      #unlockCard .unlock-action .btn {
-        padding: 6px 10px;          /* slightly more premium */
-        border-radius: 10px;
-        font-size: 0.78rem;
-      }
-
-      /* Footer note stays pinned and cleaner */
-      #unlockCard .unlock-footer {
-        margin-top: auto;
-        border-radius: 10px;
-        padding: 8px 10px;
-      }
-
-      /* Responsive: collapse multi-field rows on narrow screens */
-      @media (max-width: 560px) {
-        #unlockCard .unlock-section {
-          grid-template-columns: 1fr;
-        }
-        #unlockCard .unlock-fields-2,
-        #unlockCard .unlock-fields-3 {
-          grid-template-columns: 1fr;
-        }
-        #unlockCard .unlock-action {
-          justify-content: stretch;
-        }
-        #unlockCard .unlock-action .btn {
-          width: 100%;
-        }
-      }
-	  
-	  /* Unified card titles */
-      .card-title {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans";
-		font-weight: 600;
-        font-size: 14px;
-        margin: 0;
-        letter-spacing: 0.01em;
-      }
-
-	  /* Default: mobile / narrow screens → stacked */
-	  .sig-layout {
-	    display: flex;
-	    flex-direction: column;
-	    gap: 12px;
-	    flex: 1 1 auto;
-	    overflow: hidden;
-	  }
-
-	/* QR block should not shrink */
-	.sig-layout > div:first-child {
-	  flex: 0 0 auto;
-	}
-
-	/* Wider screens → side-by-side */
-	@media (min-width: 768px) {
-	  .sig-layout {
-	    flex-direction: row;
- 	   align-items: flex-start;
-	    gap: 8px;
-	  }
-
-   .sig-layout > div:first-child {
-     flex: 0 0 160px;
-   }
-
-   .sig-layout > div:last-child {
-     flex: 1 1 auto;
-   }
- }
-
-	/* Prevent mobile font inflation */
-	html {
- 	 -webkit-text-size-adjust: 100%;
-	  text-size-adjust: 100%;
-	}
-
-	.tx-grid{
-	  display: grid;
-	  grid-template-columns: max-content minmax(0, 1fr);
-	  column-gap: 10px;
-	  row-gap: 6px;
- 	 align-items: baseline;
-	  margin: 6px 8px;
-	}
-
-	/* Labels: keep compact and stable */
-	.tx-grid > .muted{
-	  white-space: nowrap;
-	  font-size: 0.8rem;
-	}
-
-	/* Value column — CRITICAL */
-	.tx-val{
-	  min-width: 0;                 /* allows shrinking */
-	  overflow-wrap: anywhere;      /* breaks long strings */
-	  word-break: break-word;
-	  line-height: 1.3;
-	}
-
-	/* Code blocks (addresses, URs) */
-	.tx-code{
-	  display: block;
-	  max-width: 100%;
-	  font-size: 12px;
-	  white-space: normal;          /* allow wrapping */
-	  overflow-wrap: anywhere;
-	  word-break: break-word;
-	}
-
-	/* Summary text explicitly allowed to wrap */
-	.tx-summary{
-	  white-space: normal;
- 	  overflow-wrap: anywhere;
-	  word-break: break-word;
-	}
-	
-	/* Ensure the grid cell can actually shrink */
-	.tx-grid > div {
-	  min-width: 0;
-	}
-
-	/* Values: allow wrapping of long/unbroken strings */
-	.tx-val {
-	  min-width: 0;
-	  overflow-wrap: anywhere;
-	  word-break: break-word;
-	}
-
-	/* Summary: force wrapping for anything inside it (including nested <code>) */
-	.tx-summary,
-	.tx-summary * {
-	  min-width: 0;
-	  max-width: 100%;
-	  white-space: normal;
- 	 overflow-wrap: anywhere;
-	  word-break: break-word;
-	}
-
-	/* If actionLine includes <code>, this is the usual culprit */
-	.tx-summary code {
-	  white-space: normal !important;
-	  overflow-wrap: anywhere !important;
-	  word-break: break-word !important;
-	  display: inline; /* or block if you prefer */
-	}
-
-
-	html, body {
-	  -webkit-text-size-adjust: 100% !important;
-	  text-size-adjust: 100% !important;
-	}
-
-	#decodedSummary,
-	#decodedSummary * {
-	  -webkit-text-size-adjust: 100% !important;
-	  text-size-adjust: 100% !important;
-	}
-
-	body { font-size: 14px; }
-	#decodedSummary { font-size: 12px; }
-	.tx-grid b { font-size: inherit; }
-
-	/* Keep the outer card properly clipped */
-	#sigCard {
-	  overflow: hidden;
-	  box-sizing: border-box;
-	}
-
-	/* Add safe inner spacing for textarea column */
-	#sigCard .sig-layout > div:last-child {
-	  padding: 4px;
-	  box-sizing: border-box;
-	}
-
-	/* Constrain textarea correctly */
-	#sigText {
-	  width: 100%;
-	  max-width: 100%;
-	  box-sizing: border-box;
-	  display: block;
-	}
-
-	/* ===== Signature panel: prevent horizontal overflow on phones ===== */
-
-	/* Keep the card rounded and clipping */
-	#sigCard {
-	  overflow: hidden;
-	  padding: 8px;              /* key: gives textarea/header breathing room */
-	  box-sizing: border-box;
-	}
-
-	/* Do not clip inside the layout */
-	#sigCard .sig-layout {
-	  overflow: visible;
-	}
-
-	/* Critical for flex children: allow shrinking instead of overflowing */
-	#sigCard .sig-layout > div {
-	  min-width: 0;
-	}
-
-	/* Override the global nowrap that causes the overflow */
-	#sigCard .tx-header > * {
-	  white-space: normal;
-	}
-
-	/* Make right column a flex stack so textarea can size cleanly */
-	#sigCard .sig-layout > div:last-child {
-	  display: flex;
-	  flex-direction: column;
-	  min-width: 0;
-	}
-
-	/* Fix textarea sizing: don't use height:100% here (it causes bad math in flex layouts) */
-	#sigText {
-	  width: 100%;
-	  max-width: 100%;
-	  box-sizing: border-box;
-	  display: block;
-
-	  height: auto !important;   /* overrides your inline height:100% */
-	  flex: 1 1 auto;
-	  min-height: 0;
-	}
-
-	.wallet-address {
-	  font-family: monospace;
-	  font-size: 1em;
-
- 	 /* default: wide screens */
-	  white-space: nowrap;
-	  margin-left: 4px;
-	}
-
-	/* Narrow screens: allow wrapping */
-	@media (max-width: 520px) {
-	  .wallet-address {
-	    display: block;              /* moves to second row */
-	    margin-left: 0;
- 	   margin-top: 2px;
-
- 	   white-space: normal;
- 	   overflow-wrap: anywhere;
- 	   word-break: break-word;
- 	 }
-	}
-
-    </style>
+  <link rel="stylesheet" href="../theme.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="sign.css">
   </head>
 
-  <body>
-    <header style="margin-bottom: 8px; text-align:center;">
-      <h1 style="margin-bottom: 8px; margin-top: 24px; font-size: 17px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.1;">Sign Transaction</h1>
-      <p class="muted small" style="max-width: 800px; margin: 0 auto; font-size: 14px; margin-bottom: 8px;">
-        Scan signature request, verify & sign transaction
-      </p>
+  <body data-tab="sign">
+    <div class="wrap">
+    <header class="tool-header">
+      <span class="tool-icon"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#sign"/></svg></span>
+      <div><h1>Sign transaction</h1><p>Scan a request, verify its details, and sign it on this device.</p></div>
     </header>
 
     <div id="main-container">
-      <!-- Single column: Camera -> Unlock Wallet -> Transaction details -> Signature -->
+      <!-- Scanner and the currently active signing panel -->
       <div class="grid-2">
 
         <!-- Camera -->
-        <div id="cameraCard" class="card"
-             style="display:flex; flex-direction:column; overflow:hidden; position:relative;">
-          <div id="reader"
-               style="
-                 flex:0 0 auto;
-                 height:200px;
-                 max-height:200px;
-                 margin: 0 auto;
-                 overflow:hidden;
-               ">
-          </div>
+        <div id="cameraCard" class="card" style="display:flex;">
+          <div class="scanner-header"><h2 class="card-title">Request scanner</h2><div id="walletStatusPill" class="status-pill status-pill--locked" aria-live="polite">No wallet unlocked</div></div>
+          <div id="reader"></div>
 
-          <div id="walletStatusPill" class="status-pill status-pill--locked" aria-live="polite">No wallet unlocked</div>
-
-          <div class="actions"
-               style="
-                 margin-top: 0px;
-                 flex-wrap: wrap;
-                 gap: 4px;
-                 justify-content: center;
-                 text-align: center;
-               ">
-            <button id="cameraToggleBtn" class="btn" type="button" style="margin-top: 0px;">Start camera</button>
-            <button id="unlockWalletBtn" class="btn secondary" type="button" style="margin-top: 0px;">Unlock wallet</button>
-            <button id="removeWalletBtn" class="btn danger" type="button" style="margin-top: 0px; display:none;">Remove wallet</button>
+          <div class="actions">
+            <button id="cameraToggleBtn" class="btn" type="button">Start camera</button>
+            <button id="unlockWalletBtn" class="btn secondary" type="button">Unlock wallet</button>
+            <button id="removeWalletBtn" class="btn danger" type="button" style="display:none;">Remove wallet</button>
           </div>
 
           <!-- Scan diagnostics (no QR contents or secrets displayed) -->
-          <div id="scanProgress" class="muted small" aria-live="polite"
-               style="margin-top:6px; text-align:center; font-size:12px;">
+          <div id="scanProgress" class="muted small" aria-live="polite">
             Camera not started.
           </div>
         </div>
 
         <!-- Unlock Wallet -->
-        <div id="unlockCard" class="card" style="display:none; flex-direction:column;">
+        <div id="unlockCard" class="card" style="display:none;">
 
           <!-- Header -->
           <div class="unlock-header">
@@ -723,7 +54,7 @@
           <div id="walletStatusRow" style="display:none;"></div>
 
           <!-- Main content -->
-          <div class="wallet-panel" style="flex:1 1 auto;">
+          <div class="wallet-panel">
 
 			<select id="unlockMode" class="compact-input unlock-mode">
 			<option value="keystore">Import Keystore</option>
@@ -845,55 +176,51 @@
 		 </div>
 
 		 <!-- Unlocked note -->
-		 <div id="walletUnlockedNote" class="muted compact-text" style="margin-top:2px; display:none;"></div>
+		 <div id="walletUnlockedNote" class="muted compact-text" style="display:none;"></div>
 
 	    </div>
 
 
         <!-- Transaction details -->
-        <div id="txCard" class="card" aria-label="Decoded request panel"
-             style="display:flex; flex-direction:column; min-height:180px;">
+        <div id="txCard" class="card" aria-label="Decoded request panel" style="display:flex;">
 
         <div class="tx-header">
-          <h3 class="card-title" style="margin-bottom:4px; margin-top:4px;">Transaction Details</h3>
+          <h3 class="card-title">Transaction Details</h3>
 
           <!-- Buttons hidden by default; only shown when transaction details are successfully rendered -->
           <div id="txActions" class="tx-actions" style="display:none;">
-            <button id="signBtn" class="btn" type="button">&thinsp;&thinsp;&thinsp;&thinsp;Sign&thinsp;&thinsp;&thinsp;&thinsp;</button>
+            <button id="signBtn" class="btn" type="button">Sign</button>
             <button id="refreshPreviewBtn" class="btn secondary" type="button">Refresh</button>
             <button id="resetBtn" class="btn secondary" type="button">Reset</button>
           </div>
         </div>
 
-          <div id="decodedSummary" class="compact-text"
-               style="flex:1 1 auto; max-height:100%; border:1px solid var(--border); border-radius:10px; padding:6px; background:#fff; overflow:auto; margin-top:-10px;">
+          <div id="decodedSummary" class="compact-text">
             <div class="muted">Scan a transaction request QR code</div>
           </div>
         </div>
 
         <!-- Signature -->
-        <div id="sigCard" class="card"
-             style="display:none; flex-direction:column; min-height:180px;">
+        <div id="sigCard" class="card" style="display:none;">
 
           <div class="sig-layout">
 
 
-            <div style="flex:0 0 160px;">
-              <h3 class="card-title" style="margin-top:4px; margin-bottom:2px;">Signature QR</h3>
-              <div id="sigQr" style="width:153px; height:153px; margin-top: 8px;"></div>
+            <div>
+              <h3 class="card-title">Signature QR</h3>
+              <div id="sigQr"></div>
             </div>
 
-            <div style="flex:1 1 auto;">
-              <div class="tx-header" style="margin-top:0;">
+            <div>
+              <div class="tx-header">
                 <h3 class="card-title">UR:ETH-SIGNATURE</h3>
                 <!-- (4) Now acts as a reset button too (implemented in JS), label unchanged -->
-                <button id="clearSigBtn" class="btn secondary" disabled type="button" style="padding:6px 8px;">Clear</button>
+                <button id="clearSigBtn" class="btn secondary" disabled type="button">Clear</button>
               </div>
               <textarea id="sigText"
                         rows="9"
                         class="mono compact-text"
-                        readonly
-                        style="width:100%; height:100%; margin-top:4px; resize:none; overflow:auto; font-size:0.86rem;"></textarea>
+                        readonly></textarea>
             </div>
           </div>
 
@@ -907,6 +234,7 @@
       </div>
     </div>
 
+    </div>
     <div style="display:none;">
       <textarea id="log" rows="8" class="mono" readonly></textarea>
       <div id="result" class="muted small">Waiting for frames…</div>

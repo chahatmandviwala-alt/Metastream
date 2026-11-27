@@ -1,0 +1,50 @@
+.control-row, .control-left, .control-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .6rem;
+}
+.control-row { justify-content: space-between; }
+.select-pill { display: flex; align-items: center; gap: .3rem; font-size: .87rem; color: var(--subtle); }
+.select-pill select { width: auto; font-size: .88rem; font-weight: 600; padding-inline: .45rem; }
+#simulateBtn img { width: 1.2rem; height: 1.2rem; }
+.results-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, .85fr) minmax(0, 1fr);
+  gap: .65rem;
+  margin-top: 1.3rem;
+}
+.result-box { position: relative; min-width: 0; padding: .8rem; border: 1px solid var(--line); background: #f7f9f6; border-radius: .52rem; }
+.section-label { font-size: .86rem; font-weight: 630; margin-bottom: .5rem; }
+.dice-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .24rem; }
+.die-input { text-align: center; padding: .25rem 0; font-weight: 650; appearance: textfield; }
+.die-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.coin-pill, .bip39-word { display: flex; align-items: center; gap: .4rem; min-height: 2.75rem; font-weight: 600; overflow-wrap: anywhere; }
+.coin-pill .icon { width: 1.25rem; height: 1.25rem; }
+.coin-select { padding-inline: .4rem; }
+.bip39-word-index { color: var(--subtle); font-size: .76rem; }
+#inlineClearBtn { position: absolute; top: .25rem; right: .3rem; width: 2rem; height: 2rem; }
+.phrase-card { margin-top: 1.4rem; border-top: 1px solid var(--line); padding-top: 1.2rem; }
+.phrase-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .5rem; }
+.phrase-cell { position: relative; padding: .4rem; border: 1px solid var(--line); border-radius: .45rem; }
+.phrase-num { padding-inline: .18rem; color: var(--subtle); font: 500 .68rem/1.35 var(--sans); }
+.phrase-input { padding: .25rem .18rem; min-height: 1.9rem; border: 0; background: transparent; font-size: .94rem; font-weight: 550; }
+.phrase-input:disabled, .die-input:disabled { color: var(--ink); opacity: 1; }
+.invalid { background: #fcebe6; outline: 1px solid #b65a48; }
+.suggest { display: none; position: absolute; left: 0; top: 100%; z-index: 2; min-width: 100%; background: #fff; border: 1px solid var(--line); border-radius: .35rem; box-shadow: 0 4px 12px #163c3522; }
+.suggest button { display: block; text-align: left; width: 100%; border: 0; padding: .5rem; background: transparent; }
+.suggest button:hover, .suggest button:focus { background: #e5efea; }
+.checksum-row { display: none; gap: .65rem; flex-wrap: wrap; margin-top: 1rem; }
+.checksum-row select { flex: 1 1 13rem; }
+.hint { margin-top: .75rem; }
+@media (max-width: 48rem) {
+  .results-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .result-box:first-child { grid-column: 1 / -1; }
+  .phrase-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 34rem) {
+  .control-left, .control-right { width: 100%; }
+  .select-pill { flex: 1; flex-direction: column; align-items: stretch; }
+  .select-pill select { width: 100%; }
+  .control-right .btn { flex: 1; }
+}

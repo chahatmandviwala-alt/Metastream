@@ -1,0 +1,44 @@
+@font-face {
+  font-family: "DM Sans";
+  src: url("assets/dm-sans-latin-wght-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --brand: #437e8f;
+  --accent: #306b79;
+  --ink: #1e343a;
+  --subtle: #52676b;
+  --line: #d6dfdd;
+  --canvas: #f5f7f5;
+  --paper: #fff;
+  --sans: "DM Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-family: var(--sans);
+  /* Keep large, native-resolution displays readable while respecting OS scaling. */
+  font-size: clamp(100%, min(1.12vw, 2.05vh), 250%);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+* { box-sizing: border-box; }
+:focus-visible { outline: 3px solid #397d90; outline-offset: 3px; }
+
+:root { --tool-ink: #236c6b; --tool-wash: #e0efea; }
+[data-tab="diceware"] { --tool-ink: #906025; --tool-wash: #fbefd7; }
+[data-tab="keystoreTool"] { --tool-ink: #725790; --tool-wash: #f0eaf7; }
+[data-tab="connect"] { --tool-ink: #3c6c98; --tool-wash: #e5eef9; }
+[data-tab="sign"] { --tool-ink: #9b573d; --tool-wash: #f8e9df; }
+[data-tab="info"] { --tool-ink: #566b48; --tool-wash: #edf1e3; }
+.tool-icon {
+  display: grid;
+  place-items: center;
+  width: 2.85rem;
+  height: 2.85rem;
+  border-radius: .65rem;
+  background: var(--tool-wash);
+  color: var(--tool-ink);
+}
+.tool-icon .icon { width: 1.65rem; height: 1.65rem; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }

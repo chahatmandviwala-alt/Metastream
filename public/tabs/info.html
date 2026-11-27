@@ -4,184 +4,22 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>METASTREAM — Info</title>
-  <style>
-    :root {
-      --bg: #0f172a;
-      --bg2: #111827;
-      --hover: #1f2937;
-      --text: #111827;
-      --muted: #4b5563;
-      --card: #ffffff;
-      --border: rgba(17, 24, 39, 0.10);
-      --accent: #3b82f6;
-      --shadow: 0 16px 40px rgba(0,0,0,0.10);
-      --radius: 18px;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      background: #f3f4f6;
-      color: var(--text);
-      line-height: 1.55;
-      font-size: 88%; /* 12% smaller for all non-heading text */
-    }
-
-    /* Top bar (inspired by index.html sidebar palette) */
-    .topbar {
-      background: linear-gradient(180deg, var(--bg2), var(--bg));
-      color: #e5e7eb;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      padding: 18px 18px 16px 18px;
-    }
-
-    .topbar-inner {
-      max-width: 980px;
-      margin: 0 auto;
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .brand {
-      font-weight: 800;
-      letter-spacing: 0.2px;
-      font-size: 14px;
-      white-space: nowrap;
-    }
-
-    .subtitle {
-      color: rgba(229,231,235,0.85);
-      font-size: 13px;
-      max-width: 620px;
-      text-align: right;
-    }
-
-    .wrap {
-      max-width: 980px;
-      margin: 22px auto;
-      padding: 0 18px 26px 18px;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 20px 18px;
-    }
-
-    /* Typography */
-    h1 {
-      margin: 6px 0 10px 0;
-      font-size: 20px;
-      text-align: center;
-    }
-    h2 {
-      margin: 20px 0 10px 0;
-      font-size: 16px;
-      color: #111827;
-    }
-    h3 {
-      margin: 16px 0 8px 0;
-      font-size: 14px;
-      color: #111827;
-    }
-    h4 {
-      margin: 12px 0 8px 0;
-      font-size: 13px;
-      color: #111827;
-    }
-    p {
-      margin: 10px 0;
-      color: #374151;
-    }
-
-    ul {
-      margin: 10px 0 12px 22px;
-      padding: 0;
-      color: #374151;
-    }
-    li { margin: 6px 0; }
-
-    a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    a:hover { text-decoration: underline; }
-
-    /* Images */
-    img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 14px;
-      border: 1px solid rgba(17,24,39,0.08);
-      box-shadow: 0 10px 26px rgba(0,0,0,0.08);
-    }
-    p.img {
-      margin: 14px 0;
-    }
-    p[align="center"] {
-      margin: 16px 0;
-    }
-
-    /* Security/Warning Callout (subtle red) */
-    .callout {
-      border: 1px solid rgba(220, 38, 38, 0.25);
-      background: rgba(220, 38, 38, 0.06);
-      border-radius: 14px;
-      padding: 12px 14px;
-      margin: 18px auto;        /* center horizontally */
-      color: #374151;
-      font-size: 1em;
-      max-width: 760px;         /* match comfortable text width */
-      width: 100%;
-    }
-
-    .callout p {
-      margin: 6px 0;
-      color: inherit;
-      font-size: inherit;
-      line-height: inherit;
-    }
-    .callout strong {
-      color: #7f1d1d;
-    }
-
-    /* Wallet address styling */
-    .wallet-address {
-      color: #2ecc71; /* green */
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-weight: 600;
-      word-break: break-all;
-    }
-	
-	.callout {
-      text-align: center;
-    }
-
-    /* Make the legacy README inline styles less jarring */
-    h2[style] { margin-top: 20px !important; }
-  </style>
+  <link rel="stylesheet" href="../theme.css">
+  <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-tab="info">
 
   <div class="wrap">
-    <div class="card" id="content">
-      <h1>M&thinsp;E&thinsp;T&thinsp;A&thinsp;S&thinsp;T&thinsp;R&thinsp;E&thinsp;A&thinsp;M</h1>
-
-      <p style="text-align: center; margin-bottom: 18px;">
-        A solution for creating Ethereum wallets and securely signing transactions offline using air-gapped devices.
-      </p>
+    <header class="tool-header">
+      <span class="tool-icon"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#guide"/></svg></span>
+      <div><h1>User guide</h1><p>Metastream walkthroughs, security notes, and reference information.</p></div>
+    </header>
+    <article class="card" id="content">
 
       <h4>Security Tip: Use this application only on a permanently air-gapped machine for maximum security.</h4>
       <h4>Warning: Never type your cold wallet or hardware wallet seed phrase on a device that connects to the internet.</h4>
 
-      <h2 style="margin-top: 12px; martin-top: 12px;">Description</h2>
+      <h2>Description</h2>
 
       <p>
         Metastream is a secure offline wallet solution that lets you manage ethereum wallets and sign transactions without exposing
@@ -190,7 +28,7 @@
         without needing a dedicated device.
       </p>
 
-      <h2 style="margin-top: 12px;">Features</h2>
+      <h2>Features</h2>
 
       <ul>
         <li>Completely offline</li>
@@ -206,7 +44,7 @@
         <li>Virutal keyboard</li>
       </ul>
 
-      <h2 style="margin-top: 12px;">Know How To</h2>
+      <h2>Walkthroughs</h2>
 
       <h3>Create a new wallet</h3>
 
@@ -217,7 +55,7 @@
         into a BIP-39 mnemonic seed phrase. This ensures the resulting seed phrase has sufficient randomness for secure key generation.
       </p>
 
-      <p align="center"><img src="docs/IMG_02.png" alt="Alt text" width="50%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_02.png" alt="Alt text" width="50%" /></p>
 
       <h3>Export wallet</h3>
 
@@ -230,7 +68,7 @@
         recovery method.
       </p>
 
-      <p align="center"><img src="docs/IMG_03.png" alt="Alt text" width="50%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_03.png" alt="Alt text" width="50%" /></p>
 
       <h3>Dice roll &amp; Coin flip</h3>
 
@@ -243,7 +81,7 @@
         This process determines the first words (n-1) of the seed phrase, while the final word is calculated as the checksum.
       </p>
 
-      <p align="center"><img src="docs/IMG_04.png" alt="Alt text" width="50%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_04.png" alt="Alt text" width="50%" /></p>
 
       <h3>Find last (checksum) seed word</h3>
 
@@ -252,13 +90,13 @@
         Choose a word from the list all valid last words that satisfy the checksum.
       </p>
 
-      <p align="center"><img src="docs/IMG_05.png" alt="Alt text" width="50%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_05.png" alt="Alt text" width="50%" /></p>
 
       <h3>Connect wallet</h3>
 
       <p>Connect a newly created wallet or any other wallet to Metamask or Rabby as a hardware wallet.</p>
 
-      <p align="center"><img src="docs/IMG_06.png" alt="Alt text" width="50%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_06.png" alt="Alt text" width="50%" /></p>
 
       <p>
         Obtian a BC-UR encoded CRYPTO-HDKEY from a seed phrase (optional passphrase and custom derivation path). Using UR:CRYPTO-HDKEY QR codes,
@@ -266,11 +104,11 @@
         hardware wallet behavior without a direct physical connection and without exposing the private keys.
       </p>
 
-      <p align="center"><img src="docs/IMG_07.png" alt="Alt text" width="50%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_07.png" alt="Alt text" width="50%" /></p>
 
       <p>Scan the generated UR:CRYPTO-HDKEY QR code with Metamask or Rabby to connect the wallet.</p>
 
-      <p align="center"><img src="docs/IMG_08.png" alt="Alt text" width="65%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_08.png" alt="Alt text" width="65%" /></p>
 
       <h3>Sign Transaction</h3>
 
@@ -281,7 +119,7 @@
         details that were used to initiate the transaction using Metamask or Rabby.
       </p>
 
-      <p align="center"><img src="docs/IMG_09.png" alt="Alt text" width="65%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_09.png" alt="Alt text" width="65%" /></p>
 
       <p>
         After verifying the transaction details proceed to safely unlock a wallet. A wallet can be unlocked using a keystore file (.json),
@@ -289,7 +127,7 @@
         shows the public address of the wallet.
       </p>
 
-      <p align="center"><img src="docs/IMG_10.png" alt="Alt text" width="50%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_10.png" alt="Alt text" width="50%" /></p>
 
       <p>
         Sign the transaction after unlocking the wallet to generate a signature QR code. Scan this signature QR code using the 'Get Signature'
@@ -297,7 +135,7 @@
         wireless connection is required between Metamask/Rabby and Metastream.
       </p>
 
-      <p align="center"><img src="docs/IMG_11.png" alt="Alt text" width="50%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_11.png" alt="Alt text" width="50%" /></p>
 
       <h3>Virtual Keyboard</h3>
 
@@ -307,9 +145,9 @@
         physical keystrokes.
       </p>
 
-      <p align="center"><img src="docs/IMG_12.png" alt="Alt text" width="50%" /></p>
+      <p align="center"><img loading="lazy" src="docs/IMG_12.png" alt="Alt text" width="50%" /></p>
 
-      <h2 style="margin-top: 12px;">Hardware-wallet-level security</h2>
+      <h2>Hardware-wallet-level security</h2>
 
       <p>
         The security model of Metastream is designed around strict offline isolation and true air-gapped operation. Metastream can be deployed on a
@@ -322,7 +160,7 @@
         malware, key loggers, and supply-chain risks commonly associated with online or browser-based wallets.
       </p>
 
-      <h2 style="margin-top: 12px;">Supply chain attacks</h2>
+      <h2>Supply chain attacks</h2>
 
       <p>
         In recent years, multiple cryptocurrency wallets have been targeted by attackers attempting to steal users’ funds, with supply chain attacks
@@ -337,11 +175,11 @@
         to use Metastream until the risk has been properly assessed and mitigated.
       </h4>
 
-      <h2 style="margin-top: 12px;">Disclosing Security Vulnerabilities</h2>
+      <h2>Disclosing Security Vulnerabilities</h2>
 
       <p>If you discover a security vulnerability within this application, please send an e-mail to chahat.mandviwala@gmail.com. All security vulnerabilities will be promptly addressed.</p>
 
-      <h2 style="margin-top: 12px;">Support the Project</h2>
+      <h2>Support the Project</h2>
 
       <p>If this project has been helpful and you’d like to support my work, contributions are always appreciated.</p>
 
@@ -352,7 +190,7 @@
 
       <p>Every bit helps and is sincerely appreciated.</p>
 	  
-      <h2 style="margin-top: 12px;">LICENSE</h2>
+      <h2>LICENSE</h2>
 
       <p>MIT License</p>
 	  
@@ -376,7 +214,7 @@
          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
          SOFTWARE.</p>
 	  
-    </div>
+    </article>
   </div>
 
 <script>
