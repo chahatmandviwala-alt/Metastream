@@ -132,8 +132,19 @@ WORK_DIR="$(mktemp -d /tmp/kiosk-usb-XXXXXX)"
 ISO_MNT="$WORK_DIR/iso"
 BOOT_MNT="$WORK_DIR/boot"
 PERSIST_MNT="$WORK_DIR/persist"
+INITRD_LIST_FILE="$WORK_DIR/initrd.list"
 LUKS_NAME="kiosk_persist"
 mkdir -p "$ISO_MNT" "$BOOT_MNT" "$PERSIST_MNT"
+
+trim() {
+  sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+has_mounts() {
+  local mounts
+  mounts="$(lsblk -nr -o "$MOUNT_COL" "$1" | tr -d '[:space:]')"
+  [[ -n "$mounts" ]]
+}
 
 cleanup() {
   local rc=$?
@@ -151,6 +162,7 @@ cleanup() {
     umount "$ISO_MNT"
   fi
   sync
+  rm -f "$INITRD_LIST_FILE" 2>/dev/null || true
   rmdir "$PERSIST_MNT" "$BOOT_MNT" "$ISO_MNT" "$WORK_DIR" 2>/dev/null || true
   exit "$rc"
 }
@@ -179,13 +191,13 @@ if [[ ! -f "$ISO_MNT/live/filesystem.squashfs" ]]; then
 fi
 
 if command -v lsinitramfs >/dev/null 2>&1; then
-  INITRD_LIST="$(lsinitramfs "$INITRD_FILE")"
+  lsinitramfs "$INITRD_FILE" > "$INITRD_LIST_FILE"
 else
-  INITRD_LIST="$(gzip -dc "$INITRD_FILE" 2>/dev/null | cpio -t 2>/dev/null || true)"
+  gzip -dc "$INITRD_FILE" 2>/dev/null | cpio -t 2>/dev/null > "$INITRD_LIST_FILE" || true
 fi
 
 for pattern in '(^|/)sbin/cryptsetup$' '(^|/)lib/cryptsetup/askpass$' 'dm[-_]crypt\.ko' 'xts\.ko' 'algif_skcipher\.ko'; do
-  if ! printf '%s\n' "$INITRD_LIST" | grep -Eq "$pattern"; then
+  if ! grep -Eq "$pattern" "$INITRD_LIST_FILE"; then
     echo "ERROR: Pre-flight FAILED: $INITRD_FILE is missing required LUKS2 component matching: $pattern" >&2
     echo "STOPPING before touching any disk. Rebuild the ISO with cryptsetup-initramfs." >&2
     exit 1
@@ -205,11 +217,11 @@ EXCLUDED_DISKS=()
 while IFS= read -r dev; do
   [[ -n "$dev" ]] || continue
   # Check if disk or any child partition has a mountpoint or active swap/dm holder.
-  if lsblk -nr -o "$MOUNT_COL" "$dev" | grep -q '[^[:space:]]'; then
+  if has_mounts "$dev"; then
     EXCLUDED_DISKS+=("$dev")
-    MODEL="$(lsblk -dn -o MODEL "$dev" | xargs || true)"
-    SIZE="$(lsblk -dn -o SIZE "$dev" | xargs || true)"
-    TRAN="$(lsblk -dn -o TRAN "$dev" | xargs || true)"
+    MODEL="$(lsblk -dn -o MODEL "$dev" | trim || true)"
+    SIZE="$(lsblk -dn -o SIZE "$dev" | trim || true)"
+    TRAN="$(lsblk -dn -o TRAN "$dev" | trim || true)"
     printf '  - %s (%s, %s, %s) [HAS MOUNTED PARTITIONS]\n' "$dev" "$SIZE" "${MODEL:-unknown}" "${TRAN:-unknown}"
   fi
 done < <(lsblk -dn -o PATH,TYPE | awk '$2 == "disk" {print $1}')
@@ -222,7 +234,7 @@ if [[ ! -b "$TARGET_DISK" ]]; then
   exit 1
 fi
 
-DISK_TYPE="$(lsblk -dn -o TYPE "$TARGET_DISK" | xargs)"
+DISK_TYPE="$(lsblk -dn -o TYPE "$TARGET_DISK" | trim)"
 if [[ "$DISK_TYPE" != "disk" ]]; then
   echo "ERROR: $TARGET_DISK is type '$DISK_TYPE', not a whole 'disk' device (do not pass a partition like /dev/sdb1)." >&2
   exit 1
@@ -235,13 +247,13 @@ case "$TARGET_DISK" in
     ;;
 esac
 
-if lsblk -nr -o "$MOUNT_COL" "$TARGET_DISK" | grep -q '[^[:space:]]'; then
+if has_mounts "$TARGET_DISK"; then
   echo "ERROR: Refusing to wipe $TARGET_DISK because one or more of its partitions are currently mounted!" >&2
   lsblk -o "NAME,SIZE,MODEL,TRAN,$MOUNT_COL" "$TARGET_DISK" >&2
   exit 1
 fi
 
-DISK_TRAN="$(lsblk -dn -o TRAN "$TARGET_DISK" | xargs || true)"
+DISK_TRAN="$(lsblk -dn -o TRAN "$TARGET_DISK" | trim || true)"
 if [[ "$DISK_TRAN" != "usb" ]]; then
   echo "WARNING: $TARGET_DISK transport is '${DISK_TRAN:-unknown}' (not 'usb')!" >&2
   read -r -p "Are you 100% sure this is your target USB drive and NOT an internal drive? (yes/no): " NON_USB_CONFIRM
@@ -462,7 +474,7 @@ printf '\n== Step 7: Final Verification ==\n'
 lsblk -f "$TARGET_DISK"
 
 echo ""
-if lsblk -nr -o "$MOUNT_COL" "$TARGET_DISK" | grep -q '[^[:space:]]'; then
+if has_mounts "$TARGET_DISK"; then
   echo "WARNING: Some partitions on $TARGET_DISK are still mounted!" >&2
   exit 1
 fi
