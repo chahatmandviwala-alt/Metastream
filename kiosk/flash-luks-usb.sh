@@ -11,6 +11,7 @@
 #   --kiosk-uid    UID    UID of kiosk user inside live OS     (default: 1000)
 #   --kiosk-gid    GID    GID of kiosk user inside live OS     (default: 1000)
 set -Eeuo pipefail
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 PERSIST_DIR="/home/kiosk/wallet"
 PERSIST_SIZE="256M"
@@ -108,6 +109,28 @@ if (( PERSIST_MIB < 32 )); then
   exit 1
 fi
 
+# Auto-install missing prerequisites on Debian/Ubuntu/MX hosts when apt-get is available.
+# Skipped completely if everything is already installed (so offline hosts keep working).
+MISSING_PKGS=()
+command -v parted >/dev/null 2>&1 || MISSING_PKGS+=("parted")
+command -v mkfs.vfat >/dev/null 2>&1 || MISSING_PKGS+=("dosfstools")
+command -v mkfs.ext4 >/dev/null 2>&1 || MISSING_PKGS+=("e2fsprogs")
+command -v cryptsetup >/dev/null 2>&1 || MISSING_PKGS+=("cryptsetup")
+command -v grub-install >/dev/null 2>&1 || MISSING_PKGS+=("grub2-common")
+[[ -d /usr/lib/grub/x86_64-efi ]] || MISSING_PKGS+=("grub-efi-amd64-bin")
+[[ -d /usr/lib/grub/i386-pc ]] || MISSING_PKGS+=("grub-pc-bin")
+if ! command -v lsinitramfs >/dev/null 2>&1 && ! command -v cpio >/dev/null 2>&1; then
+  MISSING_PKGS+=("cpio")
+fi
+
+if (( ${#MISSING_PKGS[@]} > 0 )) && command -v apt-get >/dev/null 2>&1; then
+  printf '\n== Installing missing prerequisites: %s ==\n' "${MISSING_PKGS[*]}"
+  if ! DEBIAN_FRONTEND=noninteractive apt-get update || \
+     ! DEBIAN_FRONTEND=noninteractive apt-get install -y "${MISSING_PKGS[@]}"; then
+    echo "WARNING: Automatic apt-get installation of (${MISSING_PKGS[*]}) failed (host may be offline)." >&2
+  fi
+fi
+
 # Check required host utilities upfront before modifying anything.
 MISSING_CMDS=()
 for cmd in lsblk parted wipefs mkfs.vfat mkfs.ext4 cryptsetup mount umount findmnt udevadm sed awk grep; do
@@ -115,9 +138,12 @@ for cmd in lsblk parted wipefs mkfs.vfat mkfs.ext4 cryptsetup mount umount findm
     MISSING_CMDS+=("$cmd")
   fi
 done
+if ! command -v lsinitramfs >/dev/null 2>&1 && ! command -v cpio >/dev/null 2>&1; then
+  MISSING_CMDS+=("lsinitramfs/cpio")
+fi
 if (( ${#MISSING_CMDS[@]} > 0 )); then
   echo "ERROR: Missing required tools: ${MISSING_CMDS[*]}" >&2
-  echo "Install them first (e.g., sudo apt-get update && sudo apt-get install -y parted dosfstools e2fsprogs cryptsetup grub-efi-amd64-bin grub-pc-bin)." >&2
+  echo "Install them first (e.g., sudo apt-get update && sudo apt-get install -y parted dosfstools e2fsprogs cryptsetup grub2-common grub-efi-amd64-bin grub-pc-bin)." >&2
   exit 1
 fi
 
