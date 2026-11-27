@@ -53,12 +53,14 @@ lb config \
   --archive-areas 'main non-free-firmware' \
   --firmware-chroot false \
   --firmware-binary false \
-  --bootappend-live 'boot=live nopersistence swap=false ipv6.disable=1 live-config.noautologin live-config.noroot' \
-  --bootappend-live-failsafe 'boot=live nopersistence swap=false ipv6.disable=1 live-config.noautologin live-config.noroot nomodeset'
+  --bootappend-live 'boot=live swap=false ipv6.disable=1 live-config.noautologin live-config.noroot' \
+  --bootappend-live-failsafe 'boot=live swap=false ipv6.disable=1 live-config.noautologin live-config.noroot nomodeset'
 
 mkdir -p config/package-lists \
   config/includes.chroot/opt/metastream \
   config/includes.chroot/etc/live/config.conf.d \
+  config/includes.chroot/etc/cryptsetup-initramfs \
+  config/includes.chroot/etc/initramfs-tools \
   config/includes.chroot/etc/systemd/system/getty@tty1.service.d \
   config/includes.chroot/etc/systemd/logind.conf.d \
   config/includes.chroot/etc/X11/xorg.conf.d \
@@ -74,6 +76,8 @@ linux-image-amd64
 live-boot
 live-config
 live-config-systemd
+cryptsetup
+cryptsetup-initramfs
 systemd-sysv
 udev
 dbus
@@ -182,6 +186,24 @@ LIVE_CONFIG_NOX11AUTOLOGIN="true"
 LIVE_CONFIG_NOROOT="true"
 LIVE_CONFIG_NOCOMPONENTS="user-setup,sudo,xinit"
 LIVECONF
+
+cat > config/includes.chroot/etc/cryptsetup-initramfs/conf-hook <<'CRYPTHOOK'
+# Force cryptsetup and askpass into the initramfs even without a build-time
+# /etc/crypttab entry, so live-boot can prompt for and unlock LUKS2 persistence.
+CRYPTSETUP=y
+ASKPASS=y
+CRYPTHOOK
+
+cat > config/includes.chroot/etc/initramfs-tools/modules <<'INITRAMFSMODS'
+# Kernel modules required for live-boot LUKS2 persistence in initramfs.
+dm_mod
+dm_crypt
+xts
+af_alg
+algif_skcipher
+algif_hash
+sha512_generic
+INITRAMFSMODS
 
 cat > config/includes.chroot/etc/systemd/system/getty@tty1.service.d/autologin.conf <<'GETTY'
 [Service]
@@ -407,6 +429,32 @@ done
 for n in 2 3 4 5 6; do
   systemctl mask "getty@tty${n}.service" 2>/dev/null || true
 done
+# Rebuild initramfs using /etc/cryptsetup-initramfs/conf-hook (CRYPTSETUP=y, ASKPASS=y)
+# and /etc/initramfs-tools/modules, and fail loudly if any required LUKS2 component is missing.
+update-initramfs -u -k all
+initrd_checked=0
+for initrd in /boot/initrd.img-*; do
+  [ -f "$initrd" ] || continue
+  initrd_checked=1
+  initrd_list="$(lsinitramfs "$initrd")"
+  for pattern in \
+    '(^|/)sbin/cryptsetup$' \
+    '(^|/)lib/cryptsetup/askpass$' \
+    'dm[-_]crypt\.ko' \
+    'xts\.ko' \
+    'algif_skcipher\.ko'; do
+    if ! printf '%s\n' "$initrd_list" | grep -Eq "$pattern"; then
+      echo "ERROR: $initrd is missing required LUKS2 initramfs component matching: $pattern" >&2
+      exit 1
+    fi
+  done
+  echo "[Metastream] LUKS2 initramfs check passed: $initrd"
+done
+if [ "$initrd_checked" -eq 0 ]; then
+  echo 'ERROR: No /boot/initrd.img-* found to verify for LUKS2 support.' >&2
+  exit 1
+fi
+
 # The running live system regenerates the machine ID in RAM.
 : > /etc/machine-id
 HOOK
