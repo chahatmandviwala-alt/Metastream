@@ -83,8 +83,11 @@
   .wallet-panel { gap: .5rem; }
   #txActions .btn { padding-inline: clamp(.65rem, 3.85cqi, 1.05rem); }
   .tx-group { padding: .28rem .6rem; line-height: 1.25; }
-  .tx-group .recipient-address { font-size: min(.9em, 3.85cqi); }
-  .tx-group:has(.recipient-address) > div { container-type: inline-size; }
+  .tx-group :is(.recipient-address, .summary-address) {
+    font-size: min(.945em, 4.04cqi);
+    letter-spacing: -.016em;
+  }
+  .tx-group:has(.recipient-address, .summary-address) > div { container-type: inline-size; }
   .tx-group dd { margin-block-start: .15rem; }
   #decodedSummary:has(> .tx-group) { gap: .3rem; }
   #sigQr img, #sigQr canvas { width: min(100%, 11rem, 27vh); }
