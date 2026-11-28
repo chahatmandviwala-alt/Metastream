@@ -84,8 +84,9 @@
   #txActions .btn { padding-inline: clamp(.65rem, 3.85cqi, 1.05rem); }
   .tx-group { padding: .28rem .6rem; line-height: 1.25; }
   .tx-group :is(.recipient-address, .summary-address) {
-    font-size: min(.945em, 4.04cqi);
-    letter-spacing: -.016em;
+    font-size: min(1.04em, 4.444cqi);
+    /* Tighten spacing only as needed to fit a 42-character EVM address. */
+    letter-spacing: min(-.016em, calc(100cqi / 42 - .61em));
   }
   .tx-group:has(.recipient-address, .summary-address) > div { container-type: inline-size; }
   .tx-group dd { margin-block-start: .15rem; }
