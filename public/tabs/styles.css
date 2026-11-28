@@ -267,6 +267,11 @@ body:not([data-tab="info"]) textarea { resize: none; }
     font-size: clamp(.72rem, 3.45vw, .86rem);
     padding-inline: clamp(.2rem, 1.1vw, .5rem);
   }
+  #genBlock > .flex:has(#exportWallet:not(.hidden)), #create > .flex:has(#showKeystore:not([hidden])) {
+    gap: clamp(.25rem, 1.5vw, .65rem);
+  }
+  #genBlock > .flex:has(#exportWallet:not(.hidden)) .btn,
+  #create > .flex:has(#showKeystore:not([hidden])) .btn { flex: 1 1 auto; }
   #genBlock .result-line { padding-block: .4rem; }
   #genBlock .result-label { margin-bottom: .15rem; }
 }

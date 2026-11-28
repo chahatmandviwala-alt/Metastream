@@ -17,6 +17,7 @@
     </header>
 
     <div class="tool-stage" data-fit>
+      <div class="dice-layout">
     <section class="section">
 
       <div class="control-row">
@@ -132,6 +133,7 @@
         </div>
       </div>
     </section>
+      </div>
   </div>
   </div>
 
@@ -263,7 +265,6 @@ const state = {
 };
 
 // --- helpers ---
-function gridCellCount(totalWords) { return Math.ceil(totalWords / 6) * 6; }
 function normalizeWord(s) { return (s || "").trim().toLowerCase(); }
 function isWordListReady() { return Array.isArray(BIP39_WORDS) && BIP39_WORDS.length === 2048; }
 function getIndex0FromWord(word) {
@@ -572,77 +573,70 @@ compactWordGrid.addEventListener("change", () => {
 // --- grid build ---
 function buildGrid() {
   phraseGrid.innerHTML = "";
-  const cellCount = gridCellCount(state.totalWords);
 
-  for (let i = 0; i < cellCount; i++) {
+  for (let i = 0; i < state.totalWords; i++) {
     const cell = document.createElement("div");
     cell.className = "phrase-cell";
 
     const num = document.createElement("div");
     num.className = "phrase-num";
-    num.dataset.number = i < state.totalWords ? String(i + 1) : "–";
-    num.textContent = (i < state.totalWords) ? ("Word " + (i + 1)) : "–";
+    num.dataset.number = String(i + 1);
+    num.textContent = "Word " + (i + 1);
     cell.appendChild(num);
 
-    if (i < state.totalWords) {
-      const input = document.createElement("input");
-      input.type = "text";
-      input.autocomplete = "off";
-      input.spellcheck = false;
-      input.className = "phrase-input";
-      input.value = state.wordsText[i] || "";
-      input.setAttribute("aria-label", "Seed word " + (i + 1));
+    const input = document.createElement("input");
+    input.type = "text";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.className = "phrase-input";
+    input.value = state.wordsText[i] || "";
+    input.setAttribute("aria-label", "Seed word " + (i + 1));
 
-      const suggest = document.createElement("div");
-      suggest.className = "suggest";
+    const suggest = document.createElement("div");
+    suggest.className = "suggest";
 
-      input.addEventListener("input", () => {
-        state.wordsText[i] = input.value;
-        state.wordCommitted[i] = false;
+    input.addEventListener("input", () => {
+      state.wordsText[i] = input.value;
+      state.wordCommitted[i] = false;
+      validateCell(input);
+      recomputeChecksumUI();  // checksum now updates in any mode
+      updateStatus();
+      showSuggestionsForInput(input, suggest);
+    });
+
+    input.addEventListener("focus", () => showSuggestionsForInput(input, suggest));
+    input.addEventListener("blur", () => {
+      if (state.mode === "findlast") {
+        const v = normalizeWord(input.value);
+        if (v) state.wordCommitted[i] = true;
         validateCell(input);
-        recomputeChecksumUI();  // checksum now updates in any mode
+        recomputeChecksumUI();
         updateStatus();
-        showSuggestionsForInput(input, suggest);
-      });
+      }
+      setTimeout(() => { suggest.style.display = "none"; }, 140);
+    });
 
-      input.addEventListener("focus", () => showSuggestionsForInput(input, suggest));
-      input.addEventListener("blur", () => {
-        if (state.mode === "findlast") {
-          const v = normalizeWord(input.value);
-          if (v) state.wordCommitted[i] = true;
-          validateCell(input);
-          recomputeChecksumUI();
-          updateStatus();
-        }
-        setTimeout(() => { suggest.style.display = "none"; }, 140);
-      });
-
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          const buttons = suggest.querySelectorAll("button[data-word]");
-          if (buttons.length === 1) {
-            e.preventDefault();
-            const w = buttons[0].getAttribute("data-word");
-            if (w) {
-              input.value = w;
-              state.wordsText[i] = w;
-              state.wordCommitted[i] = true;
-              validateCell(input);
-              recomputeChecksumUI();
-              updateStatus();
-              suggest.style.display = "none";
-            }
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const buttons = suggest.querySelectorAll("button[data-word]");
+        if (buttons.length === 1) {
+          e.preventDefault();
+          const w = buttons[0].getAttribute("data-word");
+          if (w) {
+            input.value = w;
+            state.wordsText[i] = w;
+            state.wordCommitted[i] = true;
+            validateCell(input);
+            recomputeChecksumUI();
+            updateStatus();
+            suggest.style.display = "none";
           }
         }
-      });
+      }
+    });
 
-      cell.appendChild(input);
-      cell.appendChild(suggest);
-    } else {
-      const spacer = document.createElement("div");
-      spacer.style.height = "26px";
-      cell.appendChild(spacer);
-    }
+    cell.appendChild(input);
+    cell.appendChild(suggest);
 
     phraseGrid.appendChild(cell);
   }

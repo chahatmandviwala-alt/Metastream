@@ -6,7 +6,7 @@
 }
 .grid-2 > .card { padding: 0; min-height: 0; overflow: clip; flex-direction: column; }
 .sign-panel-inner { display: flex; flex: none; flex-direction: column; gap: .9rem; padding: 1.45rem; }
-#cameraCard .sign-panel-inner { flex-grow: 1; }
+#cameraCard .sign-panel-inner, #unlockCard .sign-panel-inner, #txCard .sign-panel-inner { flex-grow: 1; }
 #sigCard { justify-content: center; }
 .scanner-header, .tx-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }
 .card-title { margin: 0; }
@@ -34,10 +34,12 @@
 }
 #reader video { display: block; width: 100%; max-height: 100%; object-fit: contain; }
 #scanProgress { font-size: .83rem; }
-.wallet-panel, .unlock-section, .unlock-fields-2, .unlock-fields-3 { display: grid; gap: .8rem; }
-.unlock-action { justify-self: start; }
+.wallet-panel { display: flex; flex: 1; flex-direction: column; justify-content: space-evenly; gap: .8rem; }
+.unlock-section, .unlock-fields-2, .unlock-fields-3 { display: contents; }
+.unlock-action { align-self: start; }
 #decodedSummary { min-width: 0; overflow-wrap: anywhere; border-top: 1px solid var(--line); padding-top: .8rem; font-size: .93rem; }
-.tx-grid { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: .5rem .8rem; }
+#decodedSummary:has(.tx-grid) { display: flex; flex: 1; flex-direction: column; }
+.tx-grid { flex: 1; align-content: space-between; align-items: baseline; display: grid; grid-template-columns: max-content minmax(0,1fr); gap: .5rem .8rem; }
 .tx-val, .wallet-address, .tx-code { min-width: 0; overflow-wrap: anywhere; }
 .tx-summary code { white-space: normal !important; font-size: inherit !important; }
 .tx-actions .btn { min-height: 2.5rem; padding-inline: .7rem; }
@@ -70,9 +72,7 @@
   .grid-2 { gap: .6rem; }
   .sign-panel-inner { padding: .9rem; gap: .55rem; }
   #reader { width: min(100%, 36vh); }
-  .wallet-panel, .unlock-section, .unlock-fields-2, .unlock-fields-3 { gap: .5rem; }
-  .unlock-fields-2, .unlock-fields-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .unlock-fields-3 > :first-child { grid-column: 1 / -1; }
+  .wallet-panel { gap: .5rem; }
   #sigQr img, #sigQr canvas { width: min(100%, 11rem, 27vh); }
 }
 @media (min-width: 32rem) and (max-height: 29rem) {
@@ -82,13 +82,24 @@
   #sigQr img, #sigQr canvas { width: min(100%, 32vh); }
   #sigText { height: 3rem; }
 }
+@media (max-width: 32rem) and (max-height: 36rem) {
+  #unlockCard .sign-panel-inner { gap: .4rem; padding: .65rem; }
+  .wallet-panel { gap: .35rem; }
+  .unlock-section div:has(> input) {
+    display: grid; grid-template-columns: minmax(4.4rem, .45fr) minmax(0, 1fr);
+    gap: .4rem; align-items: center;
+  }
+  .unlock-section label { margin: 0; line-height: 1.2; }
+  .wallet-panel :is(input, select) { min-height: 2rem; padding-block: .24rem; }
+  #walletAlert { padding: .35rem .5rem; line-height: 1.25; }
+}
 @media (max-height: 25rem) and (max-width: 32rem) {
   #main-container .actions .btn { min-height: 2rem; }
   #unlockCard .sign-panel-inner { position: relative; }
   .unlock-header { display: flex; align-items: center; min-height: 2rem; }
   .unlock-action { position: absolute; top: .5rem; right: .65rem; }
   .unlock-action .btn { min-height: 2rem; padding-block: .2rem; }
-  .wallet-panel, .unlock-section, .unlock-fields-2, .unlock-fields-3 { gap: .3rem; }
+  .wallet-panel { gap: .3rem; }
   .unlock-section label { margin-bottom: .15rem; }
   #walletAlert { padding: .35rem .5rem; line-height: 1.3; }
 }

@@ -167,8 +167,7 @@
 
 		 <!-- Security note (pinned to bottom) -->
 		 <div id="walletAlert" class="alert alert-red compact-text unlock-footer">
-			<strong>Security Note:</strong>
-			&thinsp; Use this tool on an air-gapped machine for maximum security.
+			Use on an air-gapped machine.
 		 </div>
 
 		 <!-- Unlocked note -->
@@ -483,7 +482,7 @@
         if (!walletAlertEl) return;
         walletAlertEl.classList.remove('alert-green');
         walletAlertEl.classList.add('alert-red');
-        walletAlertEl.innerHTML = `<strong>Security Note:</strong> &thinsp; Use this tool on an air-gapped machine for maximum security.`;
+        walletAlertEl.textContent = 'Use on an air-gapped machine.';
       }
 
       function logWalletUnlocked() {
@@ -546,11 +545,11 @@
       // ---- Unlock mode UI ----
       function updateUnlockModeUI() {
         const mode = unlockModeSelect.value;
-        keystoreSection.style.display = (mode === 'keystore') ? 'block' : 'none';
-        pkFileSection.style.display   = (mode === 'pkFile')   ? 'block' : 'none';
-        manualSection.style.display   = (mode === 'manual')   ? 'block' : 'none';
-        mnemonicSection.style.display = (mode === 'mnemonic') ? 'block' : 'none';
-        mnemonicPassSection.style.display = (mode === 'mnemonicPass') ? 'block' : 'none';
+        keystoreSection.style.display = (mode === 'keystore') ? 'contents' : 'none';
+        pkFileSection.style.display   = (mode === 'pkFile')   ? 'contents' : 'none';
+        manualSection.style.display   = (mode === 'manual')   ? 'contents' : 'none';
+        mnemonicSection.style.display = (mode === 'mnemonic') ? 'contents' : 'none';
+        mnemonicPassSection.style.display = (mode === 'mnemonicPass') ? 'contents' : 'none';
       }
       unlockModeSelect.addEventListener('change', updateUnlockModeUI);
       updateUnlockModeUI();

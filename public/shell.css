@@ -153,7 +153,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .in-tool .topbar { min-height: 3.35rem; }
 .home-link:hover, .guide-link:hover { text-decoration: underline; }
 .home-link .icon { width: 1rem; }
-.content { grid-area: 2 / 2; min-width: 0; min-height: 0; }
+.content { grid-area: 2 / 2; min-width: 0; min-height: 0; overflow: clip; }
+.keyboard-open .content { overflow: hidden auto; overscroll-behavior: contain; }
+.keyboard-open .content::after {
+  content: ""; display: block; height: calc(var(--keyboard-height) + 1rem);
+}
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
@@ -300,6 +304,9 @@ iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
   .utility .icon { width: 1.22rem; height: 1.22rem; }
   .utility span { display: none; }
   .content { grid-area: 2 / 1; }
+  /* Keep the tab at its keyboard-closed height inside a shorter scrollport. */
+  .keyboard-open .tab-content.active:not(#info) { height: calc(100% + var(--keyboard-height)); }
+  .keyboard-open .content::after { display: none; }
   .home-inner { padding: .65rem max(1rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
   .hero { min-height: 10rem; padding: 1.25rem; }
   .hero-logo { right: 3%; }
@@ -375,14 +382,6 @@ iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
 
 @media (orientation: landscape) and (min-width: 34rem) and (max-width: 56rem) and (max-height: 32rem),
        (orientation: landscape) and (pointer: coarse) and (min-width: 34rem) and (max-height: 32rem) {
-  body:has(.vk:not(.hidden, .vk-minimized)) {
-    grid-template: auto minmax(0, 1fr) / minmax(0, 1fr) minmax(0, 1fr);
-  }
-  body:has(.vk:not(.hidden, .vk-minimized)) .topbar { grid-area: 1 / 1 / 2 / -1; }
-  body:has(.vk:not(.hidden, .vk-minimized)) .content { grid-area: 2 / 1; }
-  .vk:not(.hidden, .vk-minimized) {
-    grid-area: 2 / 2; position: static; align-self: center; width: 100%; transform: none;
-  }
-  .vk-body { max-height: none; }
-  .vk-key { height: clamp(1.65rem, 9vh, 2.5rem); font-size: .8rem; }
+  .vk-body { max-height: 45vh; }
+  .vk-key { height: clamp(1.5rem, 7.5vh, 2.25rem); }
 }

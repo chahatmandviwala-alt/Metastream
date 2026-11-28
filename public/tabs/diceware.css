@@ -10,7 +10,7 @@
 #simulateBtn img { width: 1.2rem; height: 1.2rem; }
 .results-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, .85fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2.01fr) minmax(0, .64fr) minmax(0, .75fr);
   gap: .65rem;
   margin-top: 1.3rem;
 }
@@ -39,13 +39,17 @@
 .suggest { display: none; position: absolute; left: 0; top: 100%; z-index: 2; min-width: 100%; background: #fff; border: 1px solid var(--line); border-radius: .35rem; box-shadow: 0 4px 12px #163c3522; }
 .suggest button { display: block; text-align: left; width: 100%; border: 0; padding: .5rem; background: transparent; }
 .suggest button:hover, .suggest button:focus { background: #e5efea; }
-.checksum-footer { display: grid; align-items: start; margin-top: 1rem; }
-.checksum-footer > * { grid-area: 1 / 1; visibility: hidden; }
-.checksum-footer.complete .checksum-feedback { visibility: visible; }
+/* Fit the initial card with room outside it for the checksum controls. */
+.dice-layout { --checksum-gap: 1rem; --checksum-height: 2.75rem; }
+.dice-layout:not(:has(.checksum-row.ready, .checksum-footer.complete)) {
+  padding-bottom: calc(var(--checksum-height) + var(--checksum-gap));
+}
+.checksum-footer, .checksum-row, .checksum-feedback { display: none; }
+.checksum-footer:has(.ready), .checksum-footer.complete { display: block; margin-top: var(--checksum-gap); }
+.checksum-footer.complete .checksum-feedback { display: block; }
 .checksum-feedback .hint { margin-top: 0; }
 .checksum-feedback .warning { margin-top: .25rem; }
-.checksum-row { display: flex; gap: .65rem; }
-.checksum-row.ready { visibility: visible; }
+.checksum-row.ready { display: flex; gap: .65rem; min-height: var(--checksum-height); }
 .checksum-row select { flex: 1; }
 .hint { margin-top: .75rem; }
 @media (max-width: 48rem) {
@@ -65,7 +69,7 @@
   .phrase-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .3rem; }
   .phrase-cell { padding: .25rem; }
   .phrase-input { min-height: 1.45rem; padding: .12rem; font-size: .87rem; }
-  .checksum-footer { margin-top: .5rem; }
+  .dice-layout { --checksum-gap: .5rem; }
 }
 @media (max-height: 40rem) and (min-width: 32rem) {
   .phrase-grid { grid-template-columns: repeat(6, minmax(0,1fr)); }
@@ -74,6 +78,7 @@
 .phrase-cell:nth-last-child(-n+6) .suggest { top: auto; bottom: 100%; }
 
 @media (max-height: 40rem) {
+  .dice-layout { --checksum-height: 2.35rem; }
   .control-row, .control-left, .control-right { gap: .35rem; }
   .control-row .select-pill { gap: .1rem; }
   .coin-pill, .bip39-word { min-height: 1.8rem; }
@@ -101,7 +106,7 @@
 }
 
 @media (max-width: 48rem) {
-  .results-grid { grid-template-columns: minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr); gap: .35rem; }
+  .results-grid { grid-template-columns: minmax(0,2.1fr) minmax(0,.75fr) minmax(0,.75fr); gap: .35rem; }
   .result-box { padding: .4rem; }
   .result-box .section-label { font-size: .78rem; }
   .dice-row { gap: .12rem; }
@@ -112,6 +117,7 @@
   .bip39-word { flex-direction: column; align-items: start; justify-content: center; gap: 0; font-size: .85rem; line-height: 1.2; }
   #inlineClearBtn { width: 1.35rem; height: 1.35rem; }
 }
-@media (max-width: 24rem) {
+@media (max-width: 30rem) {
+  .coin-select:disabled { appearance: none; text-align: center; opacity: 1; }
   .coin-pill .icon { display: none; }
 }

@@ -3,6 +3,7 @@ const toggleBtn = document.getElementById("toggleBtn");
 const toolNav = document.getElementById("toolNav");
 const pageTitle = document.getElementById("pageTitle");
 const cards = Array.from(document.querySelectorAll(".tool-card"));
+const content = document.querySelector(".content");
 const panels = document.querySelectorAll(".tab-content");
 let currentTab = "home";
 
@@ -43,6 +44,7 @@ function openTab(tabId) {
   if (!target?.classList.contains("tab-content") || currentTab === tabId) return;
   const previous = currentTab;
   document.getElementById(previous).contentDocument?.querySelector("dialog[open]")?.close();
+  content.scrollTop = 0;
   currentTab = tabId;
   const atHome = tabId === "home";
   for (const panel of panels) panel.classList.toggle("active", panel === target);
@@ -153,6 +155,7 @@ function wireFrameFocusTracking(frame) {
     if (isTextTarget(t)) {
       vkActiveEl = t;
       vkActiveFrame = frame;
+      revealKeyboardField();
     }
   }, true);
 
@@ -355,12 +358,43 @@ function updateKeyLabels() {
   vk.querySelectorAll(".vk-key[data-action='caps']").forEach(b => b.classList.toggle("toggled", vkCaps));
 }
 
+// The dock reduces the visible scrollport. The floating keyboard instead
+// needs space to scroll the last field clear of its overlay.
+function measureKeyboard() {
+  document.body.style.setProperty("--keyboard-height", vk.offsetHeight + "px");
+}
+new ResizeObserver(measureKeyboard).observe(vk);
+
+function revealKeyboardField() {
+  if (!vkVisible || vkMinimized || !vkActiveFrame || !isTextTarget(vkActiveEl)) return;
+  const field = vkActiveEl.getBoundingClientRect();
+  const frame = vkActiveFrame.getBoundingClientRect();
+  const viewport = content.getBoundingClientRect();
+  const keyboard = vk.getBoundingClientRect();
+  const top = frame.top + field.top;
+  const bottom = frame.top + field.bottom;
+  const overlapsKeys = frame.left + field.right > keyboard.left && frame.left + field.left < keyboard.right
+    && top < keyboard.bottom && bottom > keyboard.top;
+  const limit = overlapsKeys ? Math.min(viewport.bottom, keyboard.top) : viewport.bottom;
+  if (top < viewport.top) content.scrollBy(0, top - viewport.top - 4);
+  else if (bottom > limit) content.scrollBy(0, Math.min(bottom - limit + 4, top - viewport.top));
+}
+
+function updateKeyboardLayout() {
+  const expanded = vkVisible && !vkMinimized;
+  if (!expanded) content.scrollTop = 0;
+  measureKeyboard();
+  document.body.classList.toggle("keyboard-open", expanded);
+  if (expanded) requestAnimationFrame(revealKeyboardField);
+}
+
 function showKeyboard() {
   vkVisible = true;
   vk.classList.remove("hidden");
   vk.setAttribute("aria-hidden", "false");
   vkToggleBtn.setAttribute("aria-pressed", "true");
   positionKeyboard(offsetX, offsetY);
+  updateKeyboardLayout();
   updateKeyLabels();
 }
 
@@ -370,6 +404,7 @@ function hideKeyboard() {
   vk.setAttribute("aria-hidden", "true");
   vkToggleBtn.setAttribute("aria-pressed", "false");
   vkShift = false;
+  updateKeyboardLayout();
   updateKeyLabels();
 }
 
@@ -388,6 +423,7 @@ if (vkMinBtn) {
     vkMinimized = !vkMinimized;
     vk.classList.toggle("vk-minimized", vkMinimized);
     vkMinBtn.setAttribute("aria-expanded", String(!vkMinimized));
+    updateKeyboardLayout();
     positionKeyboard(offsetX, offsetY);
   });
 }
