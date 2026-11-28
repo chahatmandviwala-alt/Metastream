@@ -53,12 +53,7 @@
 @media (max-width: 48rem) {
   .phrase-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 34rem) {
-  .control-left, .control-right { width: 100%; }
-  .select-pill { flex: 1; flex-direction: column; align-items: stretch; }
-  .select-pill select { width: 100%; }
-  .control-right .btn { flex: 1; }
-}
+
 
 @media (max-width: 42rem), (max-height: 40rem) {
   .results-grid, .phrase-card { margin-top: .7rem; }
@@ -91,8 +86,6 @@
   .phrase-num { white-space: nowrap; }
 }
 @media (max-height: 26rem) and (max-width: 32rem) {
-  .control-left { display: grid; grid-template-columns: 1.5fr 1fr; }
-  .select-pill { flex-direction: row; align-items: center; }
   .results-grid, .phrase-card { margin-top: .35rem; }
   .phrase-card { padding-top: .35rem; }
   .result-box { padding: .3rem; }
@@ -118,4 +111,14 @@
 @media (max-width: 30rem) {
   .coin-select:disabled { appearance: none; text-align: center; opacity: 1; }
   .coin-pill .icon { display: none; }
+}
+@media (max-width: 40rem) {
+  .control-row { flex-wrap: nowrap; align-items: end; justify-content: start; gap: .35rem; }
+  .control-left, .control-right { display: contents; }
+  .select-pill { min-width: 0; flex-direction: column; align-items: start; gap: .15rem; }
+  .select-pill select { max-width: 100%; padding-inline: .2rem; }
+  .control-right .btn { flex: none; padding-inline: .55rem; gap: .25rem; }
+}
+@media (max-width: 25rem) {
+  #simulateBtn img, #resetBtn [aria-hidden] { display: none; }
 }

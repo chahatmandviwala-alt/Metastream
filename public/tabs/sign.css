@@ -38,7 +38,7 @@
 .unlock-section, .unlock-fields-2, .unlock-fields-3 { display: contents; }
 .unlock-action { align-self: start; }
 #decodedSummary { min-width: 0; overflow-wrap: anywhere; border-top: 1px solid var(--line); padding-top: .8rem; font-size: .93rem; }
-#decodedSummary:has(> .tx-group) { display: grid; gap: .45rem; }
+#decodedSummary:has(> .tx-group) { display: grid; flex: 1; align-content: stretch; gap: .45rem; }
 .tx-group {
   display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column;
   margin: 0; padding: .55rem .8rem; line-height: 1.35;
@@ -83,6 +83,8 @@
   .wallet-panel { gap: .5rem; }
   #txActions .btn { padding-inline: clamp(.65rem, 3.85cqi, 1.05rem); }
   .tx-group { padding: .28rem .6rem; line-height: 1.25; }
+  .tx-group .recipient-address { font-size: min(.9em, 3.85cqi); }
+  .tx-group:has(.recipient-address) > div { container-type: inline-size; }
   .tx-group dd { margin-block-start: .15rem; }
   #decodedSummary:has(> .tx-group) { gap: .3rem; }
   #sigQr img, #sigQr canvas { width: min(100%, 11rem, 27vh); }
@@ -114,4 +116,10 @@
   .wallet-panel { gap: .3rem; }
   .unlock-section label { margin-bottom: .15rem; }
   #walletAlert { padding: .35rem .5rem; line-height: 1.3; }
+}
+@media (min-width: 48.001rem) {
+  #sigCard .sign-panel-inner { flex: 1; }
+  .sig-layout { align-content: stretch; grid-template-rows: auto 1fr; }
+  .sig-layout > div:last-child { display: flex; flex-direction: column; }
+  #sigText { flex: 1; }
 }

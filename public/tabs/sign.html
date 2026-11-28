@@ -167,7 +167,7 @@
 
 		 <!-- Security note (pinned to bottom) -->
 		 <div id="walletAlert" class="alert alert-red compact-text unlock-footer">
-			<strong>Security Note:</strong> Use on an air-gapped machine.
+			<strong>Security Note:</strong> Unlock wallet on an air-gapped machine.
 		 </div>
 
 		 <!-- Unlocked note -->
@@ -482,7 +482,7 @@
         if (!walletAlertEl) return;
         walletAlertEl.classList.remove('alert-green');
         walletAlertEl.classList.add('alert-red');
-        walletAlertEl.innerHTML = '<strong>Security Note:</strong> Use on an air-gapped machine.';
+        walletAlertEl.innerHTML = '<strong>Security Note:</strong> Unlock wallet on an air-gapped machine.';
       }
 
       function logWalletUnlocked() {
@@ -1008,9 +1008,11 @@
           summary.append(h.summary || 'Review carefully on your device.');
         }
 
+        const receiver = code(toAddr);
+        receiver.className = 'recipient-address';
         box.replaceChildren(
           group(['Network:', networkLabel], ['Tx type:', type]),
-          group(['To:', code(toAddr)]),
+          group(['To:', receiver]),
           group(['Token:', token], ['Amount:', amount]),
           group(['Summary:', summary])
         );

@@ -526,3 +526,31 @@ vkHeader.addEventListener("pointermove", event => {
 
 vkHeader.addEventListener("lostpointercapture", () => { dragOrigin = null; });
 window.addEventListener("resize", () => positionKeyboard(offsetX, offsetY));
+
+// Android WebView can resize the layout viewport, while browsers may resize
+// only the visual viewport. Measure both against the keyboard-closed height.
+let closedHeight = window.visualViewport?.height ?? innerHeight;
+let measuredWidth = innerWidth;
+function measureNativeKeyboard() {
+  const viewport = window.visualViewport;
+  if (viewport && viewport.scale !== 1) return;
+  const height = viewport?.height ?? innerHeight;
+  const frame = document.querySelector('iframe.tab-content.active');
+  const editing = frame && isTextTarget(frame.contentDocument?.activeElement);
+  const wasOpen = document.body.classList.contains('native-keyboard-open');
+  if (measuredWidth !== innerWidth || (!editing && !wasOpen)) closedHeight = height;
+  measuredWidth = innerWidth;
+  const lostHeight = closedHeight - height;
+  const open = navigator.maxTouchPoints > 0 && lostHeight > 90 && (editing || wasOpen);
+  if (open) {
+    document.body.style.setProperty('--visible-height', height + 'px');
+    document.body.style.setProperty('--native-keyboard-height', lostHeight + 'px');
+  } else if (!editing || height >= closedHeight) {
+    closedHeight = height;
+  }
+  document.body.classList.toggle('native-keyboard-open', open);
+  if (open && editing) frame.contentDocument.activeElement.scrollIntoView({block: 'nearest'});
+  if (wasOpen && !open && !vkVisible) content.scrollTop = 0;
+}
+window.addEventListener('resize', measureNativeKeyboard);
+window.visualViewport?.addEventListener('resize', measureNativeKeyboard);
