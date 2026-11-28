@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="../theme.css">
   <link rel="stylesheet" href="styles.css">
+  <script src="../layout.js" defer></script>
 </head>
 <body data-tab="connect">
   <div class="wrap">
@@ -14,7 +15,8 @@
       <div><h1>Connect wallet</h1><p>Pair with MetaMask or Rabby by sharing your wallet’s public key as a QR code.</p></div>
     </header>
 
-    <div class="grid-container">
+    <div class="tool-stage" data-fit>
+    <div class="pairing-form">
       <!-- TOP: full-width input block -->
       <section class="section" id="input-block">
         <div class="field">
@@ -66,50 +68,44 @@
   </div>
 
   <div class="confirm-wrap">
-    <button id="go" class="btn">Confirm</button>
+    <button id="go" class="btn">Connect</button>
+    <button id="viewPairing" data-dialog="pairingDialog" aria-haspopup="dialog" class="btn secondary" hidden>Show QR</button>
   </div>
 </div>
 
 <div id="err" role="status"></div>
       </section>
 
-      <!-- QR section: appears next to UR on wide screens, below on narrow screens -->
-      <section class="section hidden" id="qr-section">
-        <img id="qr" alt="Wallet pairing QR code" />
-        <div class="flex">
-          <button id="savePng" class="btn secondary">Download QR (PNG)</button>
-        </div>
-      </section>
-
-      <!-- UR section: appears below input block after generation -->
-      <section class="section hidden" id="ur-section">
-        <div id="ur" class="codebox mono"></div>
-        <div class="flex">
-          <button id="copy" class="btn">Copy UR</button>
-          <button id="saveTxt" class="btn secondary">Download ur.txt</button>
-        </div>
-      </section>
-	  
-	  <!-- New footnote -->
-      <p id="qr-footnote" class="footnote hidden"> Connect to Metamask/Rabby: Add hardware wallet  >  Select QR-based/Keystone  >  Scan the QR. </p>
+      <div id="security-warning" class="warning">
+        <strong>Security Note:</strong> Use this tool on an air-gapped machine for maximum security.
+      </div>
     </div>
-	<div id="security-warning" class="warning">
-  <strong>Security Note:</strong> Use this tool on an air-gapped machine for maximum security.
-</div>
   </div>
+  </div>
+  <dialog class="tool-dialog" id="pairingDialog" aria-labelledby="pairingDialogTitle">
+    <header class="dialog-header">
+      <h2 id="pairingDialogTitle">Connect wallet</h2>
+      <form method="dialog"><button class="dialog-close" aria-label="Close connect wallet" title="Close" autofocus>×</button></form>
+    </header>
+    <div class="dialog-body">
+      <img id="qr" alt="Wallet pairing QR code">
+      <h3 class="payload-label">UR:CRYPTO-HDKEY</h3>
+      <div id="ur" class="codebox mono"></div>
+      <div class="flex">
+        <button id="savePng" class="btn">Download QR</button>
+        <button id="saveTxt" class="btn secondary">Download UR</button>
+      </div>
+      <p class="footnote">In MetaMask or Rabby, add a QR-based hardware wallet and scan this code.</p>
+    </div>
+  </dialog>
 
 <script>
   async function gen() {
-    setErr(''); 
-    set('ur',''); 
-    document.getElementById('qr').src = '';
-
-    // hide UR + QR sections at the start of each generation attempt
-    document.getElementById('ur-section').classList.add('hidden');
-    document.getElementById('qr-section').classList.add('hidden');
-	document.getElementById('qr-footnote').classList.add('hidden');
-	document.getElementById('security-warning').classList.add('hidden');
-
+    const connectButton = document.getElementById('go');
+    connectButton.disabled = true;
+    const form = document.getElementById('input-block');
+    form.inert = true;
+    setErr('');
     try {
       const mnemonic = get('mnemonic').trim();
       if (!mnemonic) {
@@ -143,13 +139,17 @@
       // Optional: also clear passphrase if you want
       // document.getElementById('passphrase').value = '';
 
-      // Show UR + QR sections only after successful generation
-      document.getElementById('ur-section').classList.remove('hidden');
-      document.getElementById('qr-section').classList.remove('hidden');
-	  if (data.qrDataUrl) { document.getElementById('qr-footnote').classList.remove('hidden'); }
-
-    } catch (e) { 
-      setErr(e.message || String(e)); 
+      document.getElementById('security-warning').hidden = true;
+      const viewPairing = document.getElementById('viewPairing');
+      form.inert = false;
+      viewPairing.hidden = false;
+      viewPairing.focus();
+      document.getElementById('pairingDialog').showModal();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      connectButton.disabled = false;
+      form.inert = false;
     }
   }
   function set(id, v){ document.getElementById(id).textContent = v; }
@@ -187,10 +187,10 @@
 
 
   document.getElementById('go').addEventListener('click', gen);
-  document.getElementById('copy').addEventListener('click', async () => {
-    if (!window.__lastUR) return;
-    try { await navigator.clipboard.writeText(window.__lastUR); alert('UR copied'); }
-    catch { alert('Clipboard blocked by browser'); }
+  document.getElementById('input-block').addEventListener('input', () => {
+    document.getElementById('viewPairing').hidden = true;
+    document.getElementById('security-warning').hidden = false;
+    setErr('');
   });
   document.getElementById('saveTxt').addEventListener('click', () => {
     if (!window.__lastUR) return;

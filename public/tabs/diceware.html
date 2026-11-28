@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="../theme.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="diceware.css">
+  <script src="../layout.js" defer></script>
 </head>
 <body data-tab="diceware">
   <div class="wrap">
@@ -15,6 +16,7 @@
       <div><h1>Dice &amp; coin</h1><p>Generate seed words with dice rolls and coin flips, or find the final checksum word.</p></div>
     </header>
 
+    <div class="tool-stage" data-fit>
     <section class="section">
 
       <div class="control-row">
@@ -95,7 +97,14 @@
       </div>
 
       <div class="phrase-card">
-        <div class="section-label">Seed phrase words</div>
+        <div class="phrase-heading">
+          <div class="section-label">Seed phrase words</div>
+          <div id="wordPages" hidden>
+            <button class="icon-btn" id="prevWords" type="button" aria-label="Previous words">‹</button>
+            <span id="wordRange" aria-live="polite"></span>
+            <button class="icon-btn" id="nextWords" type="button" aria-label="Next words">›</button>
+          </div>
+        </div>
         <div id="phraseGrid" class="phrase-grid" aria-label="Seed phrase grid"></div>
 
         <div id="checksumRow" class="checksum-row">
@@ -120,6 +129,7 @@
         </div>
       </div>
     </section>
+  </div>
   </div>
 
   <script>
@@ -417,6 +427,7 @@ function allManualDiceValidAndPresent() {
 // --- mode logic ---
 function applyModeUIConstraints() {
   const mode = state.mode;
+  document.body.dataset.mode = mode;
 
   // Simulate enabled only in simulate mode
   simulateBtn.disabled = (mode !== "simulate");
@@ -489,6 +500,7 @@ function onDiceOrCoinChanged() {
 
     const w = wordLabelFromIndex(index0);
     state.wordsText[target] = w;
+    showWordPage(target);
 
     const inputs = phraseGrid.querySelectorAll("input.phrase-input");
     if (inputs[target]) {
@@ -529,6 +541,32 @@ inlineClearBtn.addEventListener("click", () => {
   setWordDisplay(null);
 });
 
+// On keyboard-sized viewports, keep word inputs readable in groups of eight.
+const compactWordGrid = matchMedia("(max-height: 26rem) and (max-width: 32rem)");
+const pageSize = 8;
+let firstWord = 0;
+const prevWords = document.getElementById("prevWords");
+const nextWords = document.getElementById("nextWords");
+function showWordPage(index) {
+  const paged = compactWordGrid.matches;
+  const last = state.totalWords - 1;
+  firstWord = Math.floor(Math.min(last, Math.max(0, index)) / pageSize) * pageSize;
+  const end = Math.min(firstWord + pageSize, state.totalWords);
+  Array.from(phraseGrid.children).forEach((cell, i) => {
+    cell.hidden = paged && (i < firstWord || i >= end);
+  });
+  document.getElementById("wordPages").hidden = !paged;
+  document.getElementById("wordRange").textContent = (firstWord + 1) + "–" + end;
+  prevWords.disabled = firstWord === 0;
+  nextWords.disabled = end === state.totalWords;
+}
+prevWords.addEventListener("click", () => showWordPage(firstWord - pageSize));
+nextWords.addEventListener("click", () => showWordPage(firstWord + pageSize));
+compactWordGrid.addEventListener("change", () => {
+  const focused = getInputIndex(document.activeElement);
+  showWordPage(focused >= 0 ? focused : findNextEmptyPrefixSlot() ?? state.totalWords - 1);
+});
+
 // --- grid build ---
 function buildGrid() {
   phraseGrid.innerHTML = "";
@@ -540,6 +578,7 @@ function buildGrid() {
 
     const num = document.createElement("div");
     num.className = "phrase-num";
+    num.dataset.number = i < state.totalWords ? String(i + 1) : "–";
     num.textContent = (i < state.totalWords) ? ("Word " + (i + 1)) : "–";
     cell.appendChild(num);
 
@@ -606,6 +645,7 @@ function buildGrid() {
     phraseGrid.appendChild(cell);
   }
 
+  showWordPage(0);
   phraseGrid.querySelectorAll("input.phrase-input").forEach(inp => validateCell(inp));
   applyModeUIConstraints();
 }
@@ -771,6 +811,7 @@ async function generateOneWordViaSimulation() {
 
   const text = wordLabelFromIndex(index0);
   state.wordsText[target] = text;
+  showWordPage(target);
 
   const inputs = phraseGrid.querySelectorAll("input.phrase-input");
   if (inputs[target]) {
@@ -879,6 +920,7 @@ function applyFinalChecksumWord() {
   const last = state.totalWords - 1;
   const lastWord = wordLabelFromIndex(idx0);
   state.wordsText[last] = lastWord;
+  showWordPage(last);
 
   const inputs = phraseGrid.querySelectorAll("input.phrase-input");
   if (inputs[last]) {

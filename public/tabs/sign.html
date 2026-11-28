@@ -12,7 +12,8 @@
   <link rel="stylesheet" href="../theme.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="sign.css">
-  </head>
+  <script src="../layout.js" defer></script>
+</head>
 
   <body data-tab="sign">
     <div class="wrap">
@@ -21,6 +22,7 @@
       <div><h1>Sign transaction</h1><p>Scan a request, verify its details, and sign it on this device.</p></div>
     </header>
 
+    <div class="tool-stage" data-fit>
     <div id="main-container">
       <!-- Scanner and the currently active signing panel -->
       <div class="grid-2">
@@ -33,12 +35,7 @@
           <div class="actions">
             <button id="cameraToggleBtn" class="btn" type="button">Start camera</button>
             <button id="unlockWalletBtn" class="btn secondary" type="button">Unlock wallet</button>
-            <button id="removeWalletBtn" class="btn danger" type="button" style="display:none;">Remove wallet</button>
-          </div>
-
-          <!-- Scan diagnostics (no QR contents or secrets displayed) -->
-          <div id="scanProgress" class="muted small" aria-live="polite">
-            Camera not started.
+            <button id="removeWalletBtn" class="btn danger" type="button" hidden>Remove wallet</button>
           </div>
         </div>
 
@@ -196,7 +193,7 @@
         </div>
 
           <div id="decodedSummary" class="compact-text">
-            <div class="muted">Scan a transaction request QR code</div>
+            <div id="scanProgress" class="muted" role="status">Scan a transaction request QR code</div>
           </div>
         </div>
 
@@ -235,6 +232,7 @@
     </div>
 
     </div>
+  </div>
     <div style="display:none;">
       <textarea id="log" rows="8" class="mono" readonly></textarea>
       <div id="result" class="muted small">Waiting for frames…</div>
@@ -264,7 +262,6 @@
       const txActionsEl = document.getElementById('txActions');
 
       // ---- Panel visibility (keep UI compact: only 2 blocks visible) ----
-      const cameraCardEl = document.getElementById('cameraCard');
       const unlockCardEl = document.getElementById('unlockCard');
       const txCardEl     = document.getElementById('txCard');
       const sigCardEl    = document.getElementById('sigCard');
@@ -274,7 +271,7 @@
       const clearSigBtn = document.getElementById('clearSigBtn');
 
       function showRightPanel(which) {
-        // camera stays visible; we swap the "right" block only
+        document.getElementById('main-container').dataset.panel = which;
         if (unlockCardEl) unlockCardEl.style.display = (which === 'unlock') ? 'flex' : 'none';
         if (txCardEl)     txCardEl.style.display     = (which === 'tx')     ? 'flex' : 'none';
         if (sigCardEl)    sigCardEl.style.display    = (which === 'sig')    ? 'flex' : 'none';
@@ -334,7 +331,7 @@
     try { updateWalletUI(); } catch (_) {}
 
     // Update the camera-card button label, pill, remove button visibility
-    setUnlockWalletButtonLabel();
+    updateWalletControls();
 
     // Reset unlock button labels (UX)
     try {
@@ -345,8 +342,6 @@
       mnemonicPassUnlockBtn.textContent = 'Unlock';
     } catch (_) {}
 
-    // Keep heights aligned
-    syncRightPanelHeights();
   });
 }
 
@@ -386,6 +381,7 @@
       const pendingParts = new Set();
       const retryAfter = new Map();
       let scanComplete = false;
+      let scanSession = 0;
       const scanProgressEl = document.getElementById('scanProgress');
       let sigQr = null;
 
@@ -409,105 +405,15 @@
         return addr.slice(-n);
       }
 
-      function setRemoveWalletButtonVisible() {
-        if (!removeWalletBtn) return;
+      function updateWalletControls() {
         const hasWallet = !!(currentPrivateKeyHex && /^[0-9a-fA-F]{64}$/.test(currentPrivateKeyHex));
-        removeWalletBtn.style.display = hasWallet ? 'inline-block' : 'none';
+        unlockWalletBtn.hidden = hasWallet;
+        removeWalletBtn.hidden = !hasWallet;
+        walletStatusPillEl.classList.toggle('status-pill--unlocked', hasWallet);
+        walletStatusPillEl.textContent = hasWallet
+          ? 'Wallet: •••' + (shortAddressTail(currentAddress) || '??????')
+          : 'No wallet unlocked';
       }
-
-      function updateWalletStatusPill() {
-        if (!walletStatusPillEl) return;
-
-        const hasWallet = !!(currentPrivateKeyHex && /^[0-9a-fA-F]{64}$/.test(currentPrivateKeyHex));
-        const addrTail = currentAddress ? shortAddressTail(currentAddress, 6) : '';
-        if (hasWallet) {
-          walletStatusPillEl.textContent = `Wallet: •\u200A•\u200A•\u200A${addrTail || '??????'}`;
-          walletStatusPillEl.classList.add('status-pill--unlocked');
-        } else {
-          walletStatusPillEl.textContent = 'No wallet unlocked';
-          walletStatusPillEl.classList.remove('status-pill--unlocked');
-        }
-      }
-
-      function setUnlockWalletButtonLabel() {
-        // Update the Camera-card "Unlock wallet" button label based on wallet state
-        if (!unlockWalletBtn) return;
-        if (currentPrivateKeyHex && /^[0-9a-fA-F]{64}$/.test(currentPrivateKeyHex)) {
-          unlockWalletBtn.textContent = 'Wallet unlocked';
-        } else {
-          unlockWalletBtn.textContent = 'Unlock wallet';
-        }
-        setRemoveWalletButtonVisible();
-        updateWalletStatusPill();
-      }
-
-      // (3) Stabilize layout: ensure Unlock / Tx / Sig panels share the same height
-      //     so the camera/top block does not move when swapping panels.
-  function getNaturalHeightEvenIfHidden(el) {
-    if (!el) return 0;
-
-    // Save current inline styles we touch
-    const prev = {
-      display: el.style.display,
-      visibility: el.style.visibility,
-      position: el.style.position,
-      left: el.style.left,
-      top: el.style.top,
-      minHeight: el.style.minHeight,
-      height: el.style.height,
-      width: el.style.width,
-    };
-
-    // IMPORTANT: remove min-height constraints so measurement can shrink again
-    el.style.minHeight = '0px';
-    el.style.height = 'auto';
-
-    // Render off-screen but at the CURRENT container width so wrapping matches the real layout
-    const container = document.getElementById('main-container');
-    const targetWidth = container ? container.getBoundingClientRect().width : null;
-
-    el.style.visibility = 'hidden';
-    el.style.position = 'absolute';
-    el.style.left = '-9999px';
-    el.style.top = '0px';
-    el.style.display = 'flex';
-
-    if (targetWidth) el.style.width = targetWidth + 'px';
-
-    // Measure natural height
-    const h = el.getBoundingClientRect().height;
-
-    // Restore
-    el.style.display = prev.display;
-    el.style.visibility = prev.visibility;
-    el.style.position = prev.position;
-    el.style.left = prev.left;
-    el.style.top = prev.top;
-    el.style.minHeight = prev.minHeight;
-    el.style.height = prev.height;
-    el.style.width = prev.width;
-
-    return h;
-  }
-
-  function syncRightPanelHeights() {
-    if (!unlockCardEl || !txCardEl || !sigCardEl) return;
-
-    // 1) Clear minHeight first (prevents “ratcheting”)
-    unlockCardEl.style.minHeight = '0px';
-    txCardEl.style.minHeight = '0px';
-    sigCardEl.style.minHeight = '0px';
-
-    // 2) Measure natural height for the canonical panel (Unlock)
-    const unlockH = getNaturalHeightEvenIfHidden(unlockCardEl);
-
-    if (unlockH && unlockH > 0) {
-      // 3) Apply the synchronized minHeight
-      unlockCardEl.style.minHeight = unlockH + 'px';
-      txCardEl.style.minHeight = unlockH + 'px';
-      sigCardEl.style.minHeight = unlockH + 'px';
-    }
-  }
 
       function deriveWalletFromMnemonic(phrase, pathOverride, bip39Passphrase) {
         const ethersLib = window.ethers;
@@ -611,10 +517,8 @@
         }
 
         // Update camera-card affordances + pill
-        setUnlockWalletButtonLabel();
+        updateWalletControls();
 
-        // Keep heights aligned
-        syncRightPanelHeights();
 
         // After a successful unlock, return to Transaction details panel
         try { showRightPanel('tx'); } catch (_) {}
@@ -850,42 +754,39 @@
       });
 
       // ---- Scan to server (animated UR assembly) ----
+      const idleCaption = 'Scan a transaction request QR code';
+      const scanningCaption = 'Scanning transaction request QR code';
+
+      function showScanCaption(message) {
+        const summary = document.getElementById('decodedSummary');
+        if (!summary.contains(scanProgressEl)) summary.replaceChildren(scanProgressEl);
+        scanProgressEl.textContent = message;
+      }
+
       async function resetServerDecoder() {
-        // Keep UI focused on Transaction details when resetting
-        try { showRightPanel('tx'); } catch (_) {}
-
-        // Hide tx action buttons until details are successfully re-rendered
+        scanSession++;
+        showRightPanel('tx');
         setTxActionsVisible(false);
-
         seen.clear();
         pendingParts.clear();
         retryAfter.clear();
         scanComplete = false;
-        if (scanProgressEl) scanProgressEl.textContent = 'Ready for QR frames.';
-        try {
-          await postJSON('/api/ur/reset', {});
-          if (resultEl) {
-            resultEl.textContent = 'Decoder reset. Ready to collect frames.';
-          }
-          const box = document.getElementById('decodedSummary');
-          box.innerHTML = '<div class="muted">Scan a transaction request QR code</div>';
-        } catch (e) {
-          if (resultEl) {
-            resultEl.textContent = 'Failed to reset decoder: ' + (e.message || e);
-          }
-        }
+        showScanCaption(isRunning ? scanningCaption + '…' : idleCaption);
+        await postJSON('/api/ur/reset', {});
       }
 
       async function onScanSuccess(decodedText) {
         const part = String(decodedText || '').trim().toLowerCase();
         if (!/^ur:eth-sign-request\//.test(part)) return;
-        if (scanComplete || seen.has(part) || pendingParts.has(part)) return;
+        if (!isRunning || scanComplete || seen.has(part) || pendingParts.has(part)) return;
+        const session = scanSession;
         if (Date.now() < (retryAfter.get(part) || 0)) return;
 
         // Do not mark a frame as seen until the backend acknowledges it.
         pendingParts.add(part);
         try {
           const reply = await postJSON('/api/ur/part', { part });
+          if (session !== scanSession || scanComplete) return;
 
           if (reply.status === 'collecting') {
             if (reply.accepted === false) {
@@ -896,46 +797,35 @@
               seen.add(part);
               retryAfter.delete(part);
             }
-            if (scanProgressEl) {
-              if (typeof reply.processedParts === 'number') {
-                const processed = reply.processedParts;
-                const expected = reply.expectedParts || '?';
-                const reconstructed = reply.receivedParts || 0;
-                const pct = Math.round(100 * (reply.progress || 0));
-                scanProgressEl.textContent =
-                  (reply.accepted === false ? 'Last frame rejected. ' : '') +
-                  `Decoder: ${processed} processed; ${reconstructed}/${expected} fragments ` +
-                  `reconstructed (~${pct}% estimated).`;
-              } else {
-                scanProgressEl.textContent = `Collecting frames: ${seen.size} sent.`;
-              }
+            if (Number.isFinite(reply.progress)) {
+              const percent = Math.round(100 * Math.max(0, Math.min(1, reply.progress)));
+              showScanCaption(scanningCaption + ': ' + percent + '%');
             }
           } else if (reply.status === 'error') {
             scanComplete = true;
-            if (scanProgressEl) scanProgressEl.textContent = 'Decoder error: ' + (reply.error || 'unknown');
+            showScanCaption('Decoder error: ' + (reply.error || 'unknown'));
             log('Decoder error: ' + (reply.error || 'unknown'));
             await stopCamera();
           } else if (reply.status === 'complete') {
             scanComplete = true;
             seen.add(part);
-            if (scanProgressEl) scanProgressEl.textContent = 'QR request reconstructed successfully.';
             if (resultEl) {
               resultEl.textContent = 'Completed: ' + reply.type;
             }
             await stopCamera();
-            await refreshDecoded();
+            if (session === scanSession) await refreshDecoded();
           } else {
             // Unexpected backend response; permit the part to be retried.
             retryAfter.set(part, Date.now() + 1000);
-            if (scanProgressEl) scanProgressEl.textContent = 'Unexpected scanner response.';
+            showScanCaption('Unexpected scanner response.');
           }
         } catch (e) {
+          if (session !== scanSession || scanComplete) return;
           retryAfter.set(part, Date.now() + 1000);
-          if (scanProgressEl) scanProgressEl.textContent =
-            'Frame upload failed: ' + (e.message || e);
+          showScanCaption('Frame upload failed: ' + (e.message || e));
           log('Frame upload failed: ' + (e.message || e));
         } finally {
-          pendingParts.delete(part);
+          if (session === scanSession) pendingParts.delete(part);
           if (retryAfter.size > 1000) retryAfter.clear();
         }
       }
@@ -950,9 +840,9 @@
           isRunning = true;
           cameraToggleBtn.textContent = 'Stop camera';
           log('Camera started.');
-          if (scanProgressEl) scanProgressEl.textContent = 'Scanning for QR frames…';
+          showScanCaption(scanningCaption + '…');
         } catch (e) {
-          if (resultEl) resultEl.textContent = 'Failed to start camera: ' + (e.message || e);
+          showScanCaption('Failed to start camera: ' + (e.message || e));
           log('Start error: ' + (e.message || e));
         }
       }
@@ -981,7 +871,10 @@
           if (!isRunning) {
             await startCamera();
           } else {
+            scanSession++;
+            scanComplete = true;
             await stopCamera();
+            showScanCaption(idleCaption);
           }
         } finally {
           cameraBusy = false;
@@ -989,7 +882,7 @@
       }
 
       cameraToggleBtn.addEventListener('click', toggleCamera);
-      resetBtn.addEventListener('click', resetServerDecoder);
+      resetBtn.addEventListener('click', () => resetServerDecoder().catch(e => showScanCaption(e.message)));
 
       // ---- Decoded preview ----
       function renderHumanSummary(data) {
@@ -1120,13 +1013,10 @@ box.innerHTML = `
   </div>
 `;
 
-
-
-        // Panel content changed; keep heights aligned
-        syncRightPanelHeights();
       }
 
       async function refreshDecoded() {
+        const session = scanSession;
         const box = document.getElementById('decodedSummary');
 
         // Hide buttons until we confirm details successfully render
@@ -1135,12 +1025,12 @@ box.innerHTML = `
         box.innerHTML = '<div class="muted">(loading…)</div>';
         try {
           const data = await getJSON('/api/ur/decoded');
-          renderHumanSummary(data);
+          if (session === scanSession) renderHumanSummary(data);
         } catch (e) {
+          if (session !== scanSession) return;
           const err = 'Error: ' + (e.message || e);
           setTxActionsVisible(false);
-          box.innerHTML = `<div class="err">${err}</div>`;
-          syncRightPanelHeights();
+          showScanCaption(err);
         }
       }
 
@@ -1176,18 +1066,11 @@ box.innerHTML = `
         clearSigUI();
         if (clearSigBtn) clearSigBtn.disabled = true;
 
-        // Clear scanned tx details + reset decoder state
         await resetServerDecoder();
-
-        // Bring user back to Transaction details panel
-        showRightPanel('tx');
-
-        // Re-sync heights since panel content changed
-        syncRightPanelHeights();
       }
 
       if (clearSigBtn) {
-        clearSigBtn.addEventListener('click', clearSigAndResetTx);
+        clearSigBtn.addEventListener('click', () => clearSigAndResetTx().catch(e => showScanCaption(e.message)));
       }
 
       signBtn.addEventListener('click', async () => {
@@ -1223,28 +1106,13 @@ box.innerHTML = `
           // Replace Transaction details with Signature
           showRightPanel('sig');
 
-          // Height sync after panel swap
-          syncRightPanelHeights();
         } catch (e) {
           alert('Sign error: ' + (e.message || e));
         }
       });
 
-      // Initial setup: reflect wallet button state + sync heights when DOM is ready
-      document.addEventListener('DOMContentLoaded', () => {
-        try { resetWalletAlertToSecurityNote(); } catch (_) {}
-        setUnlockWalletButtonLabel();
-        // After initial paint, measure and align heights
-        setTimeout(syncRightPanelHeights, 0);
-      });
-
-      window.addEventListener('resize', () => {
-        // Keep layout stable across viewport changes
-        syncRightPanelHeights();
-      });
-
-      // Also do a one-time sync shortly after load (fonts/layout settling)
-      setTimeout(syncRightPanelHeights, 250);
+      resetWalletAlertToSecurityNote();
+      updateWalletControls();
     </script>
   </body>
 </html>

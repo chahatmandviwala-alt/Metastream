@@ -165,7 +165,7 @@ app.post('/api/ur/part', (req, res) => {
     return res.json({ status: 'error', error: String(err || 'decode error') });
   }
   if (!decoder.isComplete()) {
-    return res.json({ status: 'collecting' });
+    return res.json({ status: 'collecting', progress: decoder.estimatedPercentComplete() });
   }
 
   const ur = decoder.resultUR();

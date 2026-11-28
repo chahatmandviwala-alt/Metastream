@@ -42,6 +42,7 @@ function openTab(tabId) {
   const target = document.getElementById(tabId);
   if (!target?.classList.contains("tab-content") || currentTab === tabId) return;
   const previous = currentTab;
+  document.getElementById(previous).contentDocument?.querySelector("dialog[open]")?.close();
   currentTab = tabId;
   const atHome = tabId === "home";
   for (const panel of panels) panel.classList.toggle("active", panel === target);
@@ -116,7 +117,9 @@ let vkActiveEl = null;       // element within an iframe
 let vkActiveFrame = null;    // iframe element hosting vkActiveEl
 
 function isTextTarget(el) {
-  if (!el) return false;
+  if (!el || el.disabled || el.readOnly || !el.getClientRects().length || el.closest("[inert]")) return false;
+  const dialog = el.ownerDocument.querySelector("dialog[open]");
+  if (dialog && !dialog.contains(el)) return false;
 
   // contenteditable
   if (el.isContentEditable) return true;
@@ -317,7 +320,8 @@ function focusNext(direction = 1) {
   const doc = getActiveDoc();
   if (!doc) return;
 
-  const focusables = Array.from(doc.querySelectorAll("input, textarea, button, select, a[href], [tabindex]"))
+  const scope = doc.querySelector("dialog[open]") || doc;
+  const focusables = Array.from(scope.querySelectorAll("input, textarea, button, select, a[href], [tabindex]"))
     .filter(el => !el.disabled && el.tabIndex !== -1 && el.getClientRects().length);
 
   if (!focusables.length) return;
@@ -400,12 +404,12 @@ vk.addEventListener("click", (ev) => {
       case "del": delForward(); break;
       case "enter":
         // For textarea/contenteditable, insert newline; for input, trigger enter key events only
-        if (vkActiveEl && (vkActiveEl.tagName || "").toLowerCase() === "textarea") insertText("\\n");
+        if (isTextTarget(vkActiveEl) && vkActiveEl.tagName === "TEXTAREA") insertText("\n");
         else {
           // Try to dispatch Enter key events to the focused element
           try {
             const doc = getActiveDoc();
-            const el = vkActiveEl || focusFallbackTarget();
+            const el = isTextTarget(vkActiveEl) ? vkActiveEl : focusFallbackTarget();
             if (doc && el) {
               el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
               el.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true }));
