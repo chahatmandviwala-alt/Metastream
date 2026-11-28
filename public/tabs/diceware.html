@@ -33,11 +33,11 @@
 			<div class="select-pill" title="Seed phrase length (BIP39)">
             Words:
             <select id="wordsCountSelect" aria-label="Select seed phrase length">
-              <option value="12" selected>12</option>
+              <option value="12">12</option>
               <option value="15">15</option>
               <option value="18">18</option>
               <option value="21">21</option>
-              <option value="24">24</option>
+              <option value="24" selected>24</option>
             </select>
           </div>
 
@@ -107,21 +107,24 @@
         </div>
         <div id="phraseGrid" class="phrase-grid" aria-label="Seed phrase grid"></div>
 
-        <div id="checksumRow" class="checksum-row">
-          <select id="checksumSelect" aria-label="Select final checksum word">
-            <option value="" selected disabled>Enter words 1..(n-1) to compute checksum…</option>
-          </select>
-          <button id="applyChecksumBtn" class="btn primary" type="button">
-            <span>Confirm</span>
-          </button>
-        </div>
+        <div id="checksumFooter" class="checksum-footer">
+          <div id="checksumRow" class="checksum-row">
+            <select id="checksumSelect" aria-label="Select final checksum word">
+              <option value="" selected disabled>Enter words 1..(n-1) to compute checksum…</option>
+            </select>
+            <button id="applyChecksumBtn" class="btn primary" type="button">
+              <span>Confirm</span>
+            </button>
+          </div>
+          <div class="checksum-feedback">
+            <div id="checksumHint" class="hint">
+              Write this seed phrase down on a piece of paper and store it securely.
+            </div>
 
-        <div id="checksumHint" class="hint" style="display:none;">
-          Write this seed phrase down on a piece of paper and store it securely.
-        </div>
-
-        <div id="noStoreWarning" class="warning" style="display:none;">
-          <strong>No data is stored.</strong> Seed phrase will be lost forever upon reset.
+            <div id="noStoreWarning" class="warning">
+              <strong>No data is stored.</strong> Seed phrase will be lost forever upon reset.
+            </div>
+          </div>
         </div>
 
         <div id="validationWarning" class="warning" style="display:none;">
@@ -238,15 +241,14 @@ const phraseGrid = document.getElementById("phraseGrid");
 const checksumRow = document.getElementById("checksumRow");
 const checksumSelect = document.getElementById("checksumSelect");
 const applyChecksumBtn = document.getElementById("applyChecksumBtn");
-const checksumHint = document.getElementById("checksumHint");
-const noStoreWarning = document.getElementById("noStoreWarning");
+const checksumFooter = document.getElementById("checksumFooter");
 const validationWarning = document.getElementById("validationWarning");
 
 const coinSelect = document.getElementById("coinSelect");
 
 // --- state ---
 const state = {
-  totalWords: 12,
+  totalWords: 24,
   wordsText: [],
   wordCommitted: [],
   checksumCandidates: [],
@@ -832,12 +834,11 @@ async function generateOneWordViaSimulation() {
 // --- checksum logic (NOW: ANY MODE) ---
 async function recomputeChecksumUI() {
   state.finalWordIndex0 = null;
-  checksumHint.style.display = "none";
-  if (noStoreWarning) noStoreWarning.style.display = "none";
+  checksumFooter.classList.remove("complete");
 
   const { anyInvalid, allPresent } = validateAllPrefixWords();
   if (!allPresent || (anyInvalid && isWordListReady())) {
-    checksumRow.style.display = "none";
+    checksumRow.classList.remove("ready");
     checksumSelect.innerHTML = "";
     const opt = document.createElement("option");
     opt.value = "";
@@ -849,7 +850,7 @@ async function recomputeChecksumUI() {
   }
 
   if (!isWordListReady()) {
-    checksumRow.style.display = "flex";
+    checksumRow.classList.add("ready");
     checksumSelect.innerHTML = "";
     const opt = document.createElement("option");
     opt.value = "";
@@ -863,11 +864,11 @@ async function recomputeChecksumUI() {
   const prefixIndices0 = [];
   for (let i = 0; i < state.totalWords - 1; i++) {
     const idx0 = getIndex0FromWord(state.wordsText[i]);
-    if (idx0 === null) { checksumRow.style.display = "none"; return; }
+    if (idx0 === null) { checksumRow.classList.remove("ready"); return; }
     prefixIndices0.push(idx0);
   }
 
-  checksumRow.style.display = "flex";
+  checksumRow.classList.add("ready");
   checksumSelect.innerHTML = "";
   const loadingOpt = document.createElement("option");
   loadingOpt.value = "";
@@ -929,9 +930,8 @@ function applyFinalChecksumWord() {
     validateCell(inputs[last]);
   }
 
-  checksumRow.style.display = "none";
-  checksumHint.style.display = "block";
-  if (noStoreWarning) noStoreWarning.style.display = "block";
+  checksumRow.classList.remove("ready");
+  checksumFooter.classList.add("complete");
   updateStatus();
 }
 
@@ -949,9 +949,8 @@ function resetAll() {
   patternTextSpan.textContent = "–";
   setWordDisplay(null);
 
-  checksumRow.style.display = "none";
-  checksumHint.style.display = "none";
-  if (noStoreWarning) noStoreWarning.style.display = "none";
+  checksumRow.classList.remove("ready");
+  checksumFooter.classList.remove("complete");
   validationWarning.style.display = "none";
 
   renderDiceEditors();
@@ -968,7 +967,7 @@ resetBtn.addEventListener("click", resetAll);
 
 wordsCountSelect.addEventListener("change", () => {
   const v = parseInt(wordsCountSelect.value, 10);
-  state.totalWords = (v === 12 || v === 15 || v === 18 || v === 21 || v === 24) ? v : 12;
+  state.totalWords = (v === 12 || v === 15 || v === 18 || v === 21 || v === 24) ? v : 24;
   resetAll();
 });
 
@@ -978,7 +977,7 @@ modeSelect.addEventListener("change", () => {
 
 // --- init ---
 function init() {
-  state.totalWords = parseInt(wordsCountSelect.value, 10) || 12;
+  state.totalWords = parseInt(wordsCountSelect.value, 10) || 24;
   state.mode = modeSelect.value || "simulate";
   state.wordsText = Array(state.totalWords).fill("");
   state.wordCommitted = Array(state.totalWords).fill(false);

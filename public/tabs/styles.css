@@ -157,11 +157,11 @@ body:not([data-tab="info"]) .wrap {
 .tool-stage {
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   min-height: 0;
   overflow: clip;
+  container-type: size;
 }
-body:is([data-tab="newWallet"], [data-tab="diceware"]) .tool-stage { align-items: start; }
 .section, .card { padding: 1.45rem; }
 body:not([data-tab="info"]) textarea { resize: none; }
 [hidden] { display: none !important; }
@@ -247,11 +247,26 @@ body:not([data-tab="info"]) textarea { resize: none; }
   .section, .card { padding: .65rem; }
   textarea { height: 3rem; min-height: 2.5rem; }
 }
-#walletOptions summary { display: none; }
-@media (max-height: 42rem) {
-  .wallet-ready #walletOptions summary {
-    display: list-item; cursor: pointer; font-size: .9rem; font-weight: 600; color: var(--accent);
+
+/* Let the long-text field take the spare height after the controls are laid out. */
+@media (min-height: 29rem) {
+  .pairing-form, body[data-tab="keystoreTool"] .tool-stage > .section {
+    display: flex; flex-direction: column; min-height: 96cqh;
   }
-  .wallet-ready #walletOptions[open] summary { margin-bottom: .5rem; }
-  .wallet-ready:has(#walletOptions[open]) #out { display: none; }
+  #input-block, #input-block > .field, #create.pane.active, #decrypt.pane.active, #create > .field:first-child {
+    display: flex; flex-direction: column; flex: 1;
+  }
+  .pairing-form textarea, .pane.active textarea { flex: 1; }
+}
+@media (max-width: 42rem) {
+  #genBlock > .flex, #create > .flex { flex-wrap: nowrap; gap: .25rem; }
+  #genBlock > .flex .btn, #create > .flex .btn {
+    min-width: 0; padding-inline: .4rem; font-size: .8rem; white-space: nowrap;
+  }
+  #create > .flex .btn {
+    font-size: clamp(.72rem, 3.45vw, .86rem);
+    padding-inline: clamp(.2rem, 1.1vw, .5rem);
+  }
+  #genBlock .result-line { padding-block: .4rem; }
+  #genBlock .result-label { margin-bottom: .15rem; }
 }

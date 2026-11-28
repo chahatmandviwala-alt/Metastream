@@ -22,13 +22,10 @@
       <div><h1>Sign transaction</h1><p>Scan a request, verify its details, and sign it on this device.</p></div>
     </header>
 
-    <div class="tool-stage" data-fit>
-    <div id="main-container">
-      <!-- Scanner and the currently active signing panel -->
-      <div class="grid-2">
-
+    <div class="tool-stage grid-2" id="main-container">
         <!-- Camera -->
-        <div id="cameraCard" class="card" style="display:flex;">
+        <div id="cameraCard" class="card" style="display:flex;" data-fit>
+          <div class="sign-panel-inner">
           <div class="scanner-header"><h2 class="card-title">Request scanner</h2><div id="walletStatusPill" class="status-pill status-pill--locked" aria-live="polite">No wallet unlocked</div></div>
           <div id="reader"></div>
 
@@ -38,9 +35,11 @@
             <button id="removeWalletBtn" class="btn danger" type="button" hidden>Remove wallet</button>
           </div>
         </div>
+        </div>
 
         <!-- Unlock Wallet -->
-        <div id="unlockCard" class="card" style="display:none;">
+        <div id="unlockCard" class="card" style="display:none;" data-fit>
+          <div class="sign-panel-inner">
 
           <!-- Header -->
           <div class="unlock-header">
@@ -176,10 +175,12 @@
 		 <div id="walletUnlockedNote" class="muted compact-text" style="display:none;"></div>
 
 	    </div>
+        </div>
 
 
         <!-- Transaction details -->
-        <div id="txCard" class="card" aria-label="Decoded request panel" style="display:flex;">
+        <div id="txCard" class="card" aria-label="Decoded request panel" style="display:flex;" data-fit>
+          <div class="sign-panel-inner">
 
         <div class="tx-header">
           <h3 class="card-title">Transaction Details</h3>
@@ -196,9 +197,11 @@
             <div id="scanProgress" class="muted" role="status">Scan a transaction request QR code</div>
           </div>
         </div>
+        </div>
 
         <!-- Signature -->
-        <div id="sigCard" class="card" style="display:none;">
+        <div id="sigCard" class="card" style="display:none;" data-fit>
+          <div class="sign-panel-inner">
 
           <div class="sig-layout">
 
@@ -226,11 +229,8 @@
             <span id="sHex"></span>
             <span id="vParity"></span>
           </div>
+          </div>
         </div>
-
-      </div>
-    </div>
-
     </div>
   </div>
     <div style="display:none;">
@@ -271,7 +271,6 @@
       const clearSigBtn = document.getElementById('clearSigBtn');
 
       function showRightPanel(which) {
-        document.getElementById('main-container').dataset.panel = which;
         if (unlockCardEl) unlockCardEl.style.display = (which === 'unlock') ? 'flex' : 'none';
         if (txCardEl)     txCardEl.style.display     = (which === 'tx')     ? 'flex' : 'none';
         if (sigCardEl)    sigCardEl.style.display    = (which === 'sig')    ? 'flex' : 'none';

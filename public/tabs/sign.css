@@ -4,7 +4,10 @@
   align-items: stretch;
   gap: 1rem;
 }
-.grid-2 > .card { flex-direction: column; gap: .9rem; }
+.grid-2 > .card { padding: 0; min-height: 0; overflow: clip; flex-direction: column; }
+.sign-panel-inner { display: flex; flex: none; flex-direction: column; gap: .9rem; padding: 1.45rem; }
+#cameraCard .sign-panel-inner { flex-grow: 1; }
+#sigCard { justify-content: center; }
 .scanner-header, .tx-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }
 .card-title { margin: 0; }
 .status-pill { display: inline-flex; align-items: center; gap: .38rem; color: var(--subtle); font-size: .75rem; }
@@ -44,7 +47,7 @@
 #sigQr img, #sigQr canvas { width: min(100%, 13rem); height: auto; image-rendering: pixelated; }
 #sigText { margin-top: .5rem; }
 @media (max-width: 48rem) {
-  .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .grid-2 { grid-template: minmax(0, .95fr) minmax(0, 1fr) / minmax(0, 1fr); }
   #reader { max-width: 26rem; margin-inline: auto; }
 }
 
@@ -65,26 +68,23 @@
 #sigText { height: 5rem; min-height: 2.5rem; }
 @media (max-width: 48rem) {
   .grid-2 { gap: .6rem; }
-  .grid-2 > .card { gap: .55rem; }
+  .sign-panel-inner { padding: .9rem; gap: .55rem; }
   #reader { width: min(100%, 36vh); }
-  #main-container:not([data-panel="tx"]) #reader { width: min(100%, 25vh); }
   .wallet-panel, .unlock-section, .unlock-fields-2, .unlock-fields-3 { gap: .5rem; }
   .unlock-fields-2, .unlock-fields-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .unlock-fields-3 > :first-child { grid-column: 1 / -1; }
   #sigQr img, #sigQr canvas { width: min(100%, 11rem, 27vh); }
 }
 @media (min-width: 32rem) and (max-height: 29rem) {
-  .grid-2 { grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); }
-  .grid-2 > .card { padding: .65rem; gap: .4rem; }
-  #reader, #main-container:not([data-panel="tx"]) #reader { width: min(100%, 50vh); }
+  .grid-2 { grid-template: minmax(0,1fr) / minmax(0,.85fr) minmax(0,1.15fr); }
+  .sign-panel-inner { padding: .65rem; gap: .4rem; }
+  #reader { width: min(100%, 50vh); }
   #sigQr img, #sigQr canvas { width: min(100%, 32vh); }
   #sigText { height: 3rem; }
 }
 @media (max-height: 25rem) and (max-width: 32rem) {
-  #main-container[data-panel="unlock"] #reader:empty { display: none; }
-  #main-container[data-panel="unlock"] .scanner-header { display: none; }
   #main-container .actions .btn { min-height: 2rem; }
-  #unlockCard { position: relative; }
+  #unlockCard .sign-panel-inner { position: relative; }
   .unlock-header { display: flex; align-items: center; min-height: 2rem; }
   .unlock-action { position: absolute; top: .5rem; right: .65rem; }
   .unlock-action .btn { min-height: 2rem; padding-block: .2rem; }

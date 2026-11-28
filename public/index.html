@@ -30,14 +30,14 @@
 </head>
 <body>
   <aside id="sidebar" class="sidebar" aria-label="Workspace sidebar">
-    <button class="brand" type="button" data-tab="home" aria-label="Metastream home" title="Metastream home">
+    <button class="brand" type="button" data-tab="home" aria-label="Metastream dashboard" title="Metastream dashboard">
       <img src="tabs/docs/app_icon.png" alt="" width="40" height="40">
       <span>Metastream</span>
     </button>
     <nav id="workspaceNav" aria-label="Workspace">
       <div class="nav-caption">Workspace</div>
-      <button class="nav-item" type="button" data-tab="home" aria-label="Home" aria-current="page" title="Home">
-        <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#home"/></svg><span>Home</span>
+      <button class="nav-item" type="button" data-tab="home" aria-label="Dashboard" aria-current="page" title="Dashboard">
+        <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#home"/></svg><span>Dashboard</span>
       </button>
       <div class="nav-caption tools-caption">Tools</div>
       <div id="toolNav"></div>
@@ -50,9 +50,9 @@
     <div class="mobile-brand"><img src="tabs/docs/app_icon.png" alt="">Metastream</div>
     <div class="location">
       <span class="workspace-crumb"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#grid"/></svg> Workspace</span>
-      <button class="home-link" type="button" data-tab="home"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#back"/></svg> Home</button>
+      <button class="home-link" type="button" data-tab="home"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#back"/></svg> Dashboard</button>
       <svg class="crumb-divider" aria-hidden="true"><use href="assets/icons.svg#chevron"/></svg>
-      <span id="pageTitle" tabindex="-1">Home</span>
+      <span id="pageTitle" tabindex="-1">Dashboard</span>
     </div>
     <div class="utilities">
       <button class="utility" type="button" id="vkToggleBtn" aria-controls="vk" aria-pressed="false" aria-label="Virtual keyboard" title="Virtual keyboard">
@@ -69,13 +69,12 @@
         <header class="hero">
           <div class="hero-copy">
             <div class="eyebrow"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#chip"/></svg> Air-gapped wallet</div>
-            <h1 id="homeTitle">Offline workspace</h1>
+            <h1 id="homeTitle">Dashboard</h1>
             <p>Create wallets, manage keys, and sign EVM transactions offline.</p>
           </div>
           <img class="hero-logo" src="tabs/docs/app_icon.png" alt="">
         </header>
-        <h2 id="toolsTitle">Wallet tools</h2>
-        <div class="tool-grid" aria-labelledby="toolsTitle">
+        <div class="tool-grid" role="group" aria-label="Wallet tools">
         <button type="button" class="tool-card" data-tab="newWallet" aria-labelledby="name-newWallet" aria-describedby="desc-newWallet">
           <span class="tool-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#wallet"/></svg></span>
           <svg class="card-arrow" aria-hidden="true"><use href="assets/icons.svg#arrow"/></svg>

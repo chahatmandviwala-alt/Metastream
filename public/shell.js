@@ -54,7 +54,7 @@ function openTab(tabId) {
   vkActiveEl = null;
   vkActiveFrame = null;
   document.body.classList.toggle("in-tool", !atHome);
-  pageTitle.textContent = atHome ? "Home" : target.title;
+  pageTitle.textContent = atHome ? "Dashboard" : target.title;
   const focusTarget = atHome ? cards.find(card => card.dataset.tab === previous) : pageTitle;
   focusTarget?.focus({ preventScroll: true });
 }

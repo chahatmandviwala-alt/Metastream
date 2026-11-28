@@ -158,12 +158,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tab-content.active { display: block; }
 iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
 .home { height: 100%; overflow: clip; container-type: size; }
-.home.active { display: grid; grid-template-rows: minmax(0, 1fr); align-items: center; }
+.home.active { display: grid; grid-template-rows: minmax(0, 1fr); align-items: start; }
 .home-inner {
   width: 100%;
   max-width: 82rem;
   margin-inline: auto;
-  padding: clamp(1.25rem, 2.7vw, 2.75rem) clamp(1.25rem, 2.9vw, 3rem) 1.8rem;
+  padding: .65rem clamp(1.25rem, 2.9vw, 3rem) 1.8rem;
 }
 .hero {
   isolation: isolate;
@@ -171,7 +171,7 @@ iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
   overflow: hidden;
   display: flex;
   align-items: center;
-  min-height: 12.7rem;
+  min-height: max(12.7rem, 23cqh);
   padding: 1.95rem 2.1rem;
   border-radius: .85rem;
   background: var(--brand);
@@ -189,18 +189,7 @@ iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
   max-width: 32%;
   object-fit: contain;
 }
-.home h2 {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin: 1.85rem 0 .9rem;
-  font-size: 1.35rem;
-  line-height: 1.2;
-  letter-spacing: -.035em;
-  font-weight: 650;
-}
-.home h2::after { content: ""; height: 1px; background: var(--line); flex: 1; }
-.tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem; }
+.tool-grid { margin-top: 1rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem; }
 .tool-card {
   position: relative;
   display: flex;
@@ -311,12 +300,11 @@ iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
   .utility .icon { width: 1.22rem; height: 1.22rem; }
   .utility span { display: none; }
   .content { grid-area: 2 / 1; }
-  .home-inner { padding: 1rem max(1rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
+  .home-inner { padding: .65rem max(1rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
   .hero { min-height: 10rem; padding: 1.25rem; }
   .hero-logo { right: 3%; }
   .hero h1 { font-size: 2.1rem; }
   .hero p { font-size: .9rem; }
-  .home h2 { margin-top: 1.35rem; }
   .tool-card { padding: 1rem; }
   .tool-name { margin-top: .8rem; }
   .vk {
@@ -346,7 +334,6 @@ iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
   .tool-icon { width: 2.5rem; height: 2.5rem; }
   .tool-icon .icon { width: 1.45rem; height: 1.45rem; }
   .card-arrow { width: .88rem; height: .88rem; right: .9rem; top: .96rem; }
-  .home h2 { font-size: 1.16rem; margin-bottom: .75rem; }
   .airgap-note { padding: .85rem; align-items: flex-start; gap: .6rem; margin-top: 1rem; }
   .note-icon { align-self: flex-start; }
   .note-icon .icon { width: 1.15rem; height: 1.35rem; }
@@ -356,6 +343,10 @@ iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
   .vk-key svg { width: .9rem; height: .9rem; }
 }
 @media (max-width: 24rem) {
+  .in-tool .topbar {
+    gap: .3rem;
+    padding-inline: max(.5rem, env(safe-area-inset-left)) max(.5rem, env(safe-area-inset-right));
+  }
   .hero { min-height: 6.6rem; padding: 1rem; }
   .hero-copy { width: 73%; }
   .hero h1 { font-size: 1.4rem; }
@@ -368,10 +359,9 @@ iframe { border: 0; width: 100%; height: 100%; background: var(--canvas); }
 /* Keep the six shortcuts together on short screens and above a docked keyboard. */
 @container (max-height: 42rem) {
   .home-inner { padding-block: .65rem; }
-  .hero { min-height: 5.5rem; padding-block: .7rem; }
+  .hero { min-height: clamp(5.5rem, 20cqh, 9.5rem); padding-block: .7rem; }
   .hero h1 { font-size: 1.6rem; margin-block: .3rem; }
   .hero p { display: none; }
-  .home h2 { margin-block: .8rem .6rem; }
   .tool-card { padding: .72rem; }
   .tool-name { margin-top: .45rem; }
   .airgap-note { margin-top: .65rem; padding-block: .55rem; }

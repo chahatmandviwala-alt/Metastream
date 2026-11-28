@@ -20,13 +20,11 @@
     <div class="tool-stage" data-fit>
     <section class="section" id="genBlock">
 
-      <details id="walletOptions" open>
-        <summary>Wallet settings</summary>
       <div class="row">
         <div>
           <label for="wordCount">Seed phrase length</label>
           <select id="wordCount">
-            <option value="24">24 words</option>
+            <option value="24" selected>24 words</option>
             <option value="21">21 words</option>
             <option value="18">18 words</option>
             <option value="15">15 words</option>
@@ -67,8 +65,6 @@
           <input id="passphrase" type="password" placeholder="Choose a passphrase (optional)" />
         </div>
       </div>
-
-      </details>
 
       <div class="flex">
         <button id="generate" class="btn">Generate wallet</button>
@@ -159,11 +155,14 @@
     };
 
     const revokeDl = () => {
+      $("export").textContent = "Encrypt";
       const a = $("dl");
       if (a.href && a.href.startsWith("blob:")) URL.revokeObjectURL(a.href);
       a.removeAttribute("href");
       a.style.display = "none";
     };
+
+    $("keystorePassword").addEventListener("input", revokeDl);
 
     // Keystore-tool-style button toggle
     function attachButtonToggle(inputId, buttonId) {
@@ -332,15 +331,7 @@
 
     let state = null; // { mnemonic, path, address, privateKey }
 
-    const compactWallet = matchMedia("(max-height: 42rem)");
-    function fitWalletOptions() {
-      $("walletOptions").open = !($("genBlock").classList.contains("wallet-ready") && compactWallet.matches);
-    }
-    compactWallet.addEventListener("change", fitWalletOptions);
-
     function setGeneratedUI(isGenerated) {
-      $("genBlock").classList.toggle("wallet-ready", isGenerated);
-      fitWalletOptions();
       const btn = $("generate");
       const exportBtn = $("exportWallet");
       const resetBtn = $("reset");
@@ -484,7 +475,7 @@
 		);
 	    }
 
-        if (state !== walletToExport) return;
+        if (state !== walletToExport || $("keystorePassword").value !== pw) return;
         const blob = new Blob([json], { type: "application/json" });
         const url = URL.createObjectURL(blob);
 
@@ -493,6 +484,7 @@
         a.download = "keystore.json";
         a.textContent = "Download";
         a.style.display = "block";
+        $("export").textContent = "Encrypted";
 
       } catch (e) {
         if (state === walletToExport) $("exportError").textContent = e.message || String(e);
@@ -506,7 +498,7 @@
 
       $("tipLine").classList.remove("hidden");
 
-      $("wordCount").value = "12";
+      $("wordCount").value = "24";
       $("passphrase").value = "";
       $("derivationPath").value = "m/44'/60'/0'/0/0";
       $("keystorePassword").value = "";

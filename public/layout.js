@@ -10,7 +10,9 @@ for (const area of document.querySelectorAll("[data-fit]")) {
     const height = area.clientHeight;
     if (!height) return;
     panel.style.zoom = 1;
-    const naturalHeight = panel.getBoundingClientRect().height;
+    // clientHeight is rounded to CSS pixels. Use the same precision for panels
+    // that grow to fill a fractional grid track.
+    const naturalHeight = Math.round(panel.getBoundingClientRect().height);
     if (naturalHeight <= height) return;
 
     let fits = 0;
@@ -18,7 +20,7 @@ for (const area of document.querySelectorAll("[data-fit]")) {
     let scale = height / naturalHeight;
     for (let attempt = 0; attempt < 6; attempt++) {
       panel.style.zoom = scale;
-      if (panel.getBoundingClientRect().height <= height) fits = scale;
+      if (Math.round(panel.getBoundingClientRect().height) <= height) fits = scale;
       else overflows = scale;
       scale = (fits + overflows) / 2;
     }
