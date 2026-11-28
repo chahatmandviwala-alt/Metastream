@@ -167,7 +167,7 @@
 
 		 <!-- Security note (pinned to bottom) -->
 		 <div id="walletAlert" class="alert alert-red compact-text unlock-footer">
-			Use on an air-gapped machine.
+			<strong>Security Note:</strong> Use on an air-gapped machine.
 		 </div>
 
 		 <!-- Unlocked note -->
@@ -482,7 +482,7 @@
         if (!walletAlertEl) return;
         walletAlertEl.classList.remove('alert-green');
         walletAlertEl.classList.add('alert-red');
-        walletAlertEl.textContent = 'Use on an air-gapped machine.';
+        walletAlertEl.innerHTML = '<strong>Security Note:</strong> Use on an air-gapped machine.';
       }
 
       function logWalletUnlocked() {
@@ -971,46 +971,49 @@
         const token  = h.token || (tx.valueEth && tx.valueEth !== '0' ? 'ETH' : 'ERC20');
         const amount = h.amount || (tx.valueEth ?? '0');
 
-        // --- Human-readable action line ---
-        let actionLine = h.summary || 'Review carefully on your device.';
-        if (h.details?.kind === 'erc20.transfer') {
-          actionLine =
-            `Send <b>${amount} ${token}</b> to ` +
-            `<code style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;"><b>${h.details.recipient}</b></code>`;
-        } else if (h.details?.kind === 'eth.transfer') {
-          actionLine =
-            `Send <b>${amount} ETH</b> to ` +
-            `<code style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;"><b>${h.details.recipient}</b></code>`;
-        } else if (h.details?.kind === 'contract.call') {
-          actionLine =
-            `Contract call to <code style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;"><b>${h.details.to}</b></code>` +
-            ` (selector <code>${h.details.selector}</code>)`;
+        function code(value) {
+          const el = document.createElement('code');
+          el.textContent = value;
+          return el;
         }
 
-box.innerHTML = `
-  <div class="tx-grid">
-    <div class="muted">Network:</div>
-    <div class="tx-val">${networkLabel}</div>
+        function group(...fields) {
+          const list = document.createElement('dl');
+          list.className = 'tx-group';
+          for (const [label, value] of fields) {
+            const field = document.createElement('div');
+            const term = document.createElement('dt');
+            term.textContent = label;
+            const description = document.createElement('dd');
+            description.append(value);
+            field.append(term, description);
+            list.append(field);
+          }
+          return list;
+        }
 
-    <div class="muted">Tx type:</div>
-    <div class="tx-val">${type}</div>
+        const summary = document.createDocumentFragment();
+        const details = h.details;
+        if (details?.kind === 'erc20.transfer' || details?.kind === 'eth.transfer') {
+          const quantity = document.createElement('strong');
+          quantity.textContent = `${amount} ${details.kind === 'eth.transfer' ? 'ETH' : token}`;
+          const recipient = code(details.recipient);
+          recipient.className = 'summary-address';
+          summary.append('Send ', quantity, ' to', recipient);
+        } else if (details?.kind === 'contract.call') {
+          const contract = code(details.to);
+          contract.className = 'summary-address';
+          summary.append('Contract call to', contract, 'Selector: ', code(details.selector));
+        } else {
+          summary.append(h.summary || 'Review carefully on your device.');
+        }
 
-    <div class="muted">To:</div>
-    <div class="tx-val">
-      <code class="tx-code">${toAddr}</code>
-    </div>
-
-    <div class="muted">Token:</div>
-    <div class="tx-val">${token}</div>
-
-    <div class="muted">Amount:</div>
-    <div class="tx-val">${amount}</div>
-
-    <div class="muted">Summary:</div>
-    <div class="tx-val tx-summary">${actionLine}</div>
-  </div>
-`;
-
+        box.replaceChildren(
+          group(['Network:', networkLabel], ['Tx type:', type]),
+          group(['To:', code(toAddr)]),
+          group(['Token:', token], ['Amount:', amount]),
+          group(['Summary:', summary])
+        );
       }
 
       async function refreshDecoded() {

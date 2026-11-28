@@ -47,11 +47,9 @@
 .checksum-footer, .checksum-row, .checksum-feedback { display: none; }
 .checksum-footer:has(.ready), .checksum-footer.complete { display: block; margin-top: var(--checksum-gap); }
 .checksum-footer.complete .checksum-feedback { display: block; }
-.checksum-feedback .hint { margin-top: 0; }
-.checksum-feedback .warning { margin-top: .25rem; }
+.checksum-feedback .warning { margin-top: 0; }
 .checksum-row.ready { display: flex; gap: .65rem; min-height: var(--checksum-height); }
 .checksum-row select { flex: 1; }
-.hint { margin-top: .75rem; }
 @media (max-width: 48rem) {
   .phrase-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

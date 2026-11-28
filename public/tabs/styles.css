@@ -267,6 +267,7 @@ body:not([data-tab="info"]) textarea { resize: none; }
     font-size: clamp(.72rem, 3.45vw, .86rem);
     padding-inline: clamp(.2rem, 1.1vw, .5rem);
   }
+  #create > .flex:has(#showKeystore[hidden]) #btnCreate { min-width: 5.5rem; }
   #genBlock > .flex:has(#exportWallet:not(.hidden)), #create > .flex:has(#showKeystore:not([hidden])) {
     gap: clamp(.25rem, 1.5vw, .65rem);
   }
